@@ -57,9 +57,8 @@ function Field({ field, value, onChange, error }) {
         onChange,
         placeholder: field.placeholder,
         required: field.required,
-        className: `w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
-            error ? "border-red-400" : "border-slate-200"
-        }`,
+        className: `w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${error ? "border-red-400" : "border-slate-200"
+            }`,
     };
 
     return (
@@ -232,7 +231,7 @@ export default function SalesOrderPage() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-100 text-slate-900">
+        <main className="min-h-screen w-full max-w-full overflow-x-clip bg-slate-100 text-slate-900">
             <header className="bg-slate-950 text-white">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
                     <div className="flex items-center gap-3">
@@ -307,7 +306,7 @@ export default function SalesOrderPage() {
                         {errors.form}
                     </div>
                 )}
-                                <form
+                <form
                     onSubmit={handleSubmit}
                     noValidate
                     className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
@@ -328,7 +327,7 @@ export default function SalesOrderPage() {
                         </div>
                     </div>
 
-                    <div className="space-y-8 p-5 sm:p-8">
+                    <div className="min-w-0 space-y-8 p-4 sm:p-6 lg:p-8">
                         <section>
                             <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
@@ -337,7 +336,7 @@ export default function SalesOrderPage() {
                                 Company & Order Details
                             </h3>
 
-                            <div className="grid gap-5 md:grid-cols-2">
+                            <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
                                 <div>
                                     <label
                                         htmlFor="companyName"
@@ -351,11 +350,10 @@ export default function SalesOrderPage() {
                                         name="companyName"
                                         value={form.companyName}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
-                                            errors.companyName
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.companyName
                                                 ? "border-red-400"
                                                 : "border-slate-200"
-                                        }`}
+                                            }`}
                                     >
                                         <option value="">Select company</option>
                                         {companies.map((company) => (
@@ -388,7 +386,8 @@ export default function SalesOrderPage() {
                                     error={errors[fields[0].name]}
                                 />
 
-                                <div>
+
+                                <div className="w-full min-w-0">
                                     <label
                                         htmlFor="qty"
                                         className="mb-2 block text-sm font-semibold text-slate-700"
@@ -396,7 +395,7 @@ export default function SalesOrderPage() {
                                         Quantity <span className="text-red-500">*</span>
                                     </label>
 
-                                    <div className="flex gap-2">
+                                    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_100px] gap-2">
                                         <input
                                             id="qty"
                                             name="qty"
@@ -406,7 +405,7 @@ export default function SalesOrderPage() {
                                             value={form.qty}
                                             onChange={updateField}
                                             placeholder="e.g. 100"
-                                            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                                            className="block w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                         />
 
                                         <select
@@ -414,7 +413,7 @@ export default function SalesOrderPage() {
                                             value={form.qtyUnit}
                                             onChange={updateField}
                                             aria-label="Quantity unit"
-                                            className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-blue-500"
+                                            className="block w-full min-w-0 rounded-xl border border-slate-200 bg-white px-2 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                         >
                                             <option value="L">L</option>
                                             <option value="KG">KG</option>
@@ -430,6 +429,7 @@ export default function SalesOrderPage() {
                                     )}
                                 </div>
 
+
                                 <div>
                                     <label
                                         htmlFor="exFor"
@@ -443,11 +443,10 @@ export default function SalesOrderPage() {
                                         name="exFor"
                                         value={form.exFor}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
-                                            errors.exFor
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.exFor
                                                 ? "border-red-400"
                                                 : "border-slate-200"
-                                        }`}
+                                            }`}
                                     >
                                         <option value="">Select option</option>
                                         <option value="Ex">Ex</option>
@@ -474,11 +473,10 @@ export default function SalesOrderPage() {
                                         name="paymentTerms"
                                         value={form.paymentTerms}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
-                                            errors.paymentTerms
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.paymentTerms
                                                 ? "border-red-400"
                                                 : "border-slate-200"
-                                        }`}
+                                            }`}
                                     >
                                         <option value="">Select payment terms</option>
                                         <option value="Advance Payment">Advance Payment</option>
@@ -548,7 +546,7 @@ export default function SalesOrderPage() {
                             </div>
 
                             <div className="mt-5">
-                                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300">
+                                <label className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 sm:p-4">
                                     <input
                                         type="checkbox"
                                         name="gstExtra"
@@ -565,11 +563,10 @@ export default function SalesOrderPage() {
                                         GST Extra
                                     </span>
                                     <span
-                                        className={`ml-auto rounded-full px-3 py-1 text-xs font-bold ${
-                                            form.gstExtra
+                                        className={`sm:ml-auto rounded-full px-3 py-1 text-xs font-bold ${form.gstExtra
                                                 ? "bg-emerald-100 text-emerald-700"
                                                 : "bg-amber-100 text-amber-700"
-                                        }`}
+                                            }`}
                                     >
                                         {form.gstExtra ? "GST Extra" : "Not specified"}
                                     </span>
@@ -595,11 +592,10 @@ export default function SalesOrderPage() {
                                 onChange={updateField}
                                 placeholder="Enter employee name"
                                 required
-                                className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${
-                                    errors.filledBy
+                                className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.filledBy
                                         ? "border-red-400"
                                         : "border-slate-200"
-                                }`}
+                                    }`}
                             />
 
                             {errors.filledBy && (
