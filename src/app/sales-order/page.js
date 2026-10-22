@@ -5,7 +5,6 @@ import Link from "next/link";
 
 const companies = [
     "Sudha Chemical Company",
-    "HP",
     "Sudha Core Chemical Pvt. Ltd.",
     "Nirmal Agencies Gwalior",
     "Nirmal Agencies Bilaspur",
@@ -482,7 +481,7 @@ export default function SalesOrderPage() {
                                         <option value="Advance Payment">Advance Payment</option>
                                         <option value="Cash on Delivery">Cash on Delivery</option>
                                         <option value="2-3 Days">2-3 Days</option>
-                                        <option value="7 Days">7 Days</option>
+                                        <option value="7-10 Days">7-10 Days</option>
                                         <option value="15 Days">15 Days</option>
                                         <option value="30 Days">30 Days</option>
                                         <option value="45 Days">45 Days</option>
