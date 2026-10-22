@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const companies = [
-    "Sudha Chemicals",
+    "Sudha Chemical Company",
     "HP",
-    "Company 3",
-    "Company 4",
-    "Company 5",
+    "Sudha Core Chemical Pvt. Ltd.",
+    "Nirmal Agencies Gwalior",
+    "Nirmal Agencies Bilaspur",
 ];
 
 const initialForm = {
@@ -31,6 +31,7 @@ const initialForm = {
     brokerName: "",
     brokerContactNumber: "",
     brokerEmailId: "",
+    gstExtra: false,
 };
 
 const fields = [
@@ -544,6 +545,35 @@ export default function SalesOrderPage() {
                                         error={errors[field.name]}
                                     />
                                 ))}
+                            </div>
+
+                            <div className="mt-5">
+                                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300">
+                                    <input
+                                        type="checkbox"
+                                        name="gstExtra"
+                                        checked={form.gstExtra}
+                                        onChange={(event) =>
+                                            setForm((previous) => ({
+                                                ...previous,
+                                                gstExtra: event.target.checked,
+                                            }))
+                                        }
+                                        className="h-5 w-5 rounded accent-blue-700"
+                                    />
+                                    <span className="text-sm font-semibold text-slate-700">
+                                        GST Extra
+                                    </span>
+                                    <span
+                                        className={`ml-auto rounded-full px-3 py-1 text-xs font-bold ${
+                                            form.gstExtra
+                                                ? "bg-emerald-100 text-emerald-700"
+                                                : "bg-amber-100 text-amber-700"
+                                        }`}
+                                    >
+                                        {form.gstExtra ? "GST Extra" : "Not specified"}
+                                    </span>
+                                </label>
                             </div>
                         </section>
 
