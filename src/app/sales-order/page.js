@@ -42,7 +42,20 @@ const fields = [
     { name: "emailId", label: "Customer Email ID", placeholder: "customer@example.com", type: "email", required: true },
     { name: "rate", label: "Rate (₹)", placeholder: "Enter rate", type: "number", required: true },
     { name: "freight", label: "Freight (₹)", placeholder: "Enter freight amount", type: "number", required: true },
-    { name: "itemName", label: "Item Name", placeholder: "Enter chemical / product name", required: true },
+    {
+        name: "itemName", label: "Item / Chemical Name", placeholder: "Select chemical / product", required: true, options: [
+            "Sulphuric Acid (98%)",
+            "Hydrochloric Acid (30-33%)",
+            "Nitric Acid",
+            "Phosphoric Acid",
+            "Acetic Acid",
+            "Caustic Soda Lye",
+            "Soda Ash",
+            "Cuastic Soda Flakes",
+            "Citric Acid",
+            "Oleum(23%)",
+        ]
+    },
     { name: "brokerName", label: "Broker Name", placeholder: "Enter broker name" },
     { name: "brokerContactNumber", label: "Broker Contact Number", placeholder: "10-digit mobile number", type: "tel" },
     { name: "brokerEmailId", label: "Broker Email ID", placeholder: "broker@example.com", type: "email" },
@@ -66,7 +79,16 @@ function Field({ field, value, onChange, error }) {
                 {field.label} {field.required && <span className="text-red-500">*</span>}
             </label>
 
-            {field.textarea ? (
+            {field.options ? (
+                <select {...common}>
+                    <option value="">{field.placeholder || "Select an option"}</option>
+                    {field.options.map((option) => (
+                        <option key={option} value={option}>
+                            {option}
+                        </option>
+                    ))}
+                </select>
+            ) : field.textarea ? (
                 <textarea {...common} rows={3} />
             ) : (
                 <input
@@ -350,8 +372,8 @@ export default function SalesOrderPage() {
                                         value={form.companyName}
                                         onChange={updateField}
                                         className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.companyName
-                                                ? "border-red-400"
-                                                : "border-slate-200"
+                                            ? "border-red-400"
+                                            : "border-slate-200"
                                             }`}
                                     >
                                         <option value="">Select company</option>
@@ -443,8 +465,8 @@ export default function SalesOrderPage() {
                                         value={form.exFor}
                                         onChange={updateField}
                                         className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.exFor
-                                                ? "border-red-400"
-                                                : "border-slate-200"
+                                            ? "border-red-400"
+                                            : "border-slate-200"
                                             }`}
                                     >
                                         <option value="">Select option</option>
@@ -473,8 +495,8 @@ export default function SalesOrderPage() {
                                         value={form.paymentTerms}
                                         onChange={updateField}
                                         className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.paymentTerms
-                                                ? "border-red-400"
-                                                : "border-slate-200"
+                                            ? "border-red-400"
+                                            : "border-slate-200"
                                             }`}
                                     >
                                         <option value="">Select payment terms</option>
@@ -563,8 +585,8 @@ export default function SalesOrderPage() {
                                     </span>
                                     <span
                                         className={`sm:ml-auto rounded-full px-3 py-1 text-xs font-bold ${form.gstExtra
-                                                ? "bg-emerald-100 text-emerald-700"
-                                                : "bg-amber-100 text-amber-700"
+                                            ? "bg-emerald-100 text-emerald-700"
+                                            : "bg-amber-100 text-amber-700"
                                             }`}
                                     >
                                         {form.gstExtra ? "GST Extra" : "Not specified"}
@@ -592,8 +614,8 @@ export default function SalesOrderPage() {
                                 placeholder="Enter employee name"
                                 required
                                 className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.filledBy
-                                        ? "border-red-400"
-                                        : "border-slate-200"
+                                    ? "border-red-400"
+                                    : "border-slate-200"
                                     }`}
                             />
 

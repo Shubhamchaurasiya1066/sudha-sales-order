@@ -5,6 +5,18 @@ import Link from "next/link";
 
 const STORAGE_KEY = "sudha_purchase_orders";
 const units = ["L", "KG", "MT", "BAG"];
+const chemicalOptions = [
+    "Sulphuric Acid (98%)",
+    "Hydrochloric Acid (30-33%)",
+    "Nitric Acid",
+    "Phosphoric Acid",
+    "Acetic Acid",
+    "Caustic Soda Lye",
+    "Soda Ash",
+    "Cuastic Soda Flakes",
+    "Citric Acid",
+    "Oleum(23%)",
+];
 const manufacturerOptions = [
     "AHANA TRADING & LOGISTIC PRIVATE LIMITADE",
     "BODAL CHEMICALS LTD.-UNIT-VII",
@@ -352,14 +364,14 @@ export default function PurchaseOrderPage() {
                         role={noticeType === "error" ? "alert" : "status"}
                         aria-live="polite"
                         className={`mb-6 flex items-start gap-3 rounded-2xl border bg-white p-4 text-sm shadow-lg ${noticeType === "error"
-                                ? "border-red-200"
-                                : "border-emerald-200"
+                            ? "border-red-200"
+                            : "border-emerald-200"
                             }`}
                     >
                         <span
                             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-black ${noticeType === "error"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-emerald-100 text-emerald-700"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-emerald-100 text-emerald-700"
                                 }`}
                         >
                             {noticeType === "error" ? "!" : "✓"}
@@ -368,8 +380,8 @@ export default function PurchaseOrderPage() {
                         <div className="min-w-0 flex-1">
                             <p
                                 className={`font-bold ${noticeType === "error"
-                                        ? "text-red-800"
-                                        : "text-emerald-800"
+                                    ? "text-red-800"
+                                    : "text-emerald-800"
                                     }`}
                             >
                                 {noticeType === "error"
@@ -465,12 +477,16 @@ export default function PurchaseOrderPage() {
                                     )}
                                 </div>
 
-                                {field(
-                                    "itemName",
-                                    "Item Name",
-                                    "Enter chemical / product name",
-                                    { required: true }
-                                )}
+                                {field("itemName", "Item Name", "Select chemical / product", {
+                                    required: true,
+                                    select: [
+                                        { value: "", label: "Select chemical / product" },
+                                        ...chemicalOptions.map((chemical) => ({
+                                            value: chemical,
+                                            label: chemical,
+                                        })),
+                                    ],
+                                })}
 
                                 <div>
                                     <label className={labelClass} htmlFor="qty">
