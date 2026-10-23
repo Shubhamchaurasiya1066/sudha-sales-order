@@ -432,7 +432,6 @@ export default function TransportersPage() {
                                 })}
                                 {field("toCompany", "To Company", {
                                     required: true,
-                                    options: companies,
                                 })}
                                 {field("pickupLocation", "Pickup Location", {
                                     required: true,
