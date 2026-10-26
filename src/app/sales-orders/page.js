@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { getAvailableStock } from "@/lib/inventory";
 
 const STORAGE_KEY = "sudha_sales_orders";
 
@@ -22,29 +23,16 @@ function getGstExtra(order) {
     return order.gstExtra ? "GST Extra" : "No GST Extra";
 }
 
-function getStatusClass(status) {
-    const styles = {
-        Pending: "bg-amber-50 text-amber-700",
-        Confirmed: "bg-blue-50 text-blue-700",
-        Processing: "bg-violet-50 text-violet-700",
-        Dispatched: "bg-indigo-50 text-indigo-700",
-        Delivered: "bg-emerald-50 text-emerald-700",
-        Cancelled: "bg-red-50 text-red-700",
-    };
-
-    return styles[status] || "bg-slate-100 text-slate-700";
-}
-
 function downloadCSV(orders) {
     const columns = [
         ["serialNo", "S.No."],
         ["orderNumber", "Order Number"],
         ["orderDate", "Order Date"],
         ["companyName", "Company Name"],
+        ["manufacturerName", "Manufacturer / Trader"],
         ["place", "Place"],
         ["qty", "Quantity"],
         ["qtyUnit", "Quantity Unit"],
-        ["status", "Order Status"],
         ["filledBy", "Form Filled By"],
         ["ipAddress", "IP Address"],
         ["customerName", "Customer Name"],
@@ -60,6 +48,7 @@ function downloadCSV(orders) {
         ["brokerName", "Broker Name"],
         ["brokerContactNumber", "Broker Contact Number"],
         ["brokerEmailId", "Broker Email"],
+        ["otherPersonName", "Other Person Name"],
     ];
 
     const escapeCSV = (value) =>
@@ -70,7 +59,6 @@ function downloadCSV(orders) {
         ...orders.map((order) =>
             columns.map(([key]) => {
                 if (key === "qty") return escapeCSV(getQuantity(order));
-                if (key === "status") return escapeCSV(order.status || "Pending");
                 if (key === "gstExtra") return escapeCSV(getGstExtra(order));
                 return escapeCSV(order[key]);
             }).join(",")
@@ -113,7 +101,6 @@ export default function SalesOrdersPage() {
         setReady(true);
     }, []);
 
-    // Automatically dismiss toast notifications after 4 seconds.
     useEffect(() => {
         if (!notice) return;
         const timeoutId = window.setTimeout(() => setNotice(""), 4000);
@@ -130,13 +117,14 @@ export default function SalesOrdersPage() {
                     order.orderNumber,
                     order.orderDate,
                     order.companyName,
+                    order.manufacturerName,
                     order.customerName,
                     order.customerNumber,
                     order.emailId,
                     order.itemName,
                     order.place,
                     order.brokerName,
-                    order.status || "Pending",
+                    order.otherPersonName,
                     order.filledBy,
                     order.ipAddress,
                     getQuantity(order),
@@ -162,11 +150,15 @@ export default function SalesOrdersPage() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
             setOrders(updated);
 
-            if (selectedOrder?.id === order.id) {
-                setSelectedOrder(null);
+            if (selectedOrder?.id === order.id) setSelectedOrder(null);
+            if (editingOrder?.id === order.id) {
+                setEditingOrder(null);
+                setEditForm({});
             }
 
-            setNotice(`Sales Order #${order.serialNo} deleted.`);
+            setNotice(
+                `Sales Order #${order.serialNo} deleted. Inventory will recalculate automatically.`
+            );
         } catch {
             setNotice("Could not update saved orders.");
         }
@@ -178,7 +170,6 @@ export default function SalesOrdersPage() {
             ...order,
             qty: order.qty ?? "",
             qtyUnit: order.qtyUnit || "KG",
-            status: order.status || "Pending",
             gstExtra: typeof order.gstExtra === "boolean" ? order.gstExtra : true,
         });
         setSelectedOrder(null);
@@ -186,20 +177,90 @@ export default function SalesOrdersPage() {
 
     function saveEditedOrder(event) {
         event.preventDefault();
+
         if (!editingOrder) return;
 
-        const updated = orders.map((order) =>
-            order.id === editingOrder.id
-                ? { ...order, ...editForm, qty: editForm.qty, rate: editForm.rate, freight: editForm.freight }
-                : order
+        const qty = Number(editForm.qty);
+        const rate = Number(editForm.rate);
+        const freight = Number(
+            editForm.freight ?? editingOrder.freight ?? editingOrder.frieght ?? 0
         );
+
+        const itemName = String(editForm.itemName || "").trim();
+        const qtyUnit = String(editForm.qtyUnit || "KG").trim().toUpperCase();
+
+        if (!itemName) {
+            setNotice("Please enter an item name.");
+            return;
+        }
+
+        if (!Number.isFinite(qty) || qty <= 0) {
+            setNotice("Quantity must be greater than zero.");
+            return;
+        }
+
+        if (!Number.isFinite(rate) || rate < 0) {
+            setNotice("Please enter a valid rate.");
+            return;
+        }
+
+        // Freight optional — only validate if provided
+        if (
+            editForm.freight !== "" &&
+            editForm.freight !== undefined &&
+            editForm.freight !== null &&
+            (!Number.isFinite(freight) || freight < 0)
+        ) {
+            setNotice("Please enter a valid freight amount.");
+            return;
+        }
+
+        // Stock validation
+        const stock = getAvailableStock(itemName, qtyUnit);
+        let availableQty = Number(stock.availableQty) || 0;
+
+        const oldItem = String(editingOrder.itemName || "").trim().toLowerCase();
+        const oldUnit = String(editingOrder.qtyUnit || "KG").trim().toUpperCase();
+        const sameItem =
+            oldItem === itemName.toLowerCase() && oldUnit === qtyUnit;
+
+        // Restore current order's effect before validating
+        if (sameItem) {
+            availableQty += Number(editingOrder.qty) || 0;
+        }
+
+        if (qty > availableQty) {
+            setNotice(
+                `Insufficient stock for ${itemName}. ` +
+                `Available: ${Math.max(0, availableQty)} ${qtyUnit}; ` +
+                `requested: ${qty} ${qtyUnit}.`
+            );
+            return;
+        }
+
+        const updated = orders.map((order) => {
+            if (order.id !== editingOrder.id) return order;
+
+            return {
+                ...order,
+                ...editForm,
+                itemName,
+                qty,
+                qtyUnit,
+                rate,
+                freight: Number.isFinite(freight) ? freight : 0,
+                updatedAt: new Date().toISOString(),
+            };
+        });
 
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
             setOrders(updated);
             setEditingOrder(null);
             setEditForm({});
-            setNotice(`Sales Order #${editingOrder.serialNo} updated successfully.`);
+            setNotice(
+                `Sales Order #${editingOrder.serialNo} updated successfully.`
+            );
         } catch {
             setNotice("Could not save changes. Please check browser storage.");
         }
@@ -211,9 +272,9 @@ export default function SalesOrdersPage() {
             ["Order Number", order.orderNumber],
             ["Order Date", order.orderDate],
             ["Company Name", order.companyName],
+            ["Manufacturer / Trader", order.manufacturerName],
             ["Place", order.place],
             ["Quantity", getQuantity(order)],
-            ["Status", order.status || "Pending"],
             ["Filled By", order.filledBy],
             ["IP Address", order.ipAddress],
             ["Customer Name", order.customerName],
@@ -229,6 +290,7 @@ export default function SalesOrdersPage() {
             ["Broker Name", order.brokerName],
             ["Broker Contact Number", order.brokerContactNumber],
             ["Broker Email", order.brokerEmailId],
+            ["Other Person Name", order.otherPersonName],
         ];
         const printWindow = window.open("", "_blank", "width=900,height=700");
         if (!printWindow) {
@@ -236,7 +298,7 @@ export default function SalesOrdersPage() {
             return;
         }
         const esc = (value) => String(value ?? "—").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-        printWindow.document.write(`<!doctype html><html><head><title>Sales Order ${esc(order.orderNumber || order.serialNo)}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#172033;padding:32px}h1{margin:0;color:#0f172a}p{color:#64748b;margin-top:6px}.top{border-bottom:3px solid #2563eb;padding-bottom:18px;margin-bottom:24px}table{width:100%;border-collapse:collapse}td{border:1px solid #cbd5e1;padding:11px;font-size:13px}td:first-child{font-weight:bold;background:#f1f5f9;width:34%}.footer{margin-top:30px;font-size:11px;color:#64748b}@media print{button{display:none}}</style></head><body><div class="top"><h1>SUDHA CHEMICALS</h1><p>SALES ORDER</p></div><table>${rows.map(([label,value]) => `<tr><td>${esc(label)}</td><td>${esc(value || "—")}</td></tr>`).join("")}</table><p class="footer">Generated from Sudha Chemicals Sales Order Management.</p><script>window.onload=()=>{window.print();};</script></body></html>`);
+        printWindow.document.write(`<!doctype html><html><head><title>Sales Order ${esc(order.orderNumber || order.serialNo)}</title><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#172033;padding:32px}h1{margin:0;color:#0f172a}p{color:#64748b;margin-top:6px}.top{border-bottom:3px solid #2563eb;padding-bottom:18px;margin-bottom:24px}table{width:100%;border-collapse:collapse}td{border:1px solid #cbd5e1;padding:11px;font-size:13px}td:first-child{font-weight:bold;background:#f1f5f9;width:34%}.footer{margin-top:30px;font-size:11px;color:#64748b}@media print{button{display:none}}</style></head><body><div class="top"><h1>SUDHA CHEMICALS</h1><p>SALES ORDER</p></div><table>${rows.map(([label, value]) => `<tr><td>${esc(label)}</td><td>${esc(value || "—")}</td></tr>`).join("")}</table><p class="footer">Generated from Sudha Chemicals Sales Order Management.</p><script>window.onload=()=>{window.print();};</script></body></html>`);
         printWindow.document.close();
     }
 
@@ -251,9 +313,9 @@ export default function SalesOrdersPage() {
             `Order Number: ${order.orderNumber || "-"}`,
             `Order Date: ${order.orderDate || "-"}`,
             `Company: ${order.companyName || "-"}`,
+            `Manufacturer / Trader: ${order.manufacturerName || "-"}`,
             `Place: ${order.place || "-"}`,
             `Quantity: ${getQuantity(order)}`,
-            `Status: ${order.status || "Pending"}`,
             `Form Filled By: ${order.filledBy || "-"}`,
             `IP Address: ${order.ipAddress || "Unavailable"}`,
             `Customer: ${order.customerName || "-"}`,
@@ -269,6 +331,7 @@ export default function SalesOrdersPage() {
             `Broker: ${order.brokerName || "-"}`,
             `Broker Contact: ${order.brokerContactNumber || "-"}`,
             `Broker Email: ${order.brokerEmailId || "-"}`,
+            `Other Person: ${order.otherPersonName || "-"}`,
         ].join("\n");
 
         window.location.href =
@@ -285,12 +348,11 @@ export default function SalesOrdersPage() {
                 [
                     `Order #${order.orderNumber || order.serialNo}`,
                     `Company: ${order.companyName || "-"}`,
+                    `Manufacturer: ${order.manufacturerName || "-"}`,
                     `Customer: ${order.customerName || "-"}`,
                     `Item: ${order.itemName || "-"}`,
                     `Qty: ${getQuantity(order)}`,
-                    `Status: ${order.status || "Pending"}`,
                     `Filled By: ${order.filledBy || "-"}`,
-                    `IP Address: ${order.ipAddress || "Unavailable"}`,
                     `Rate: ${money(order.rate)}`,
                     `GST: ${getGstExtra(order)}`,
                 ].join(" | ")
@@ -313,7 +375,6 @@ export default function SalesOrdersPage() {
                         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 text-xl font-black">
                             S
                         </div>
-
                         <div>
                             <p className="text-lg font-bold tracking-wide">
                                 SUDHA CHEMICALS
@@ -323,6 +384,13 @@ export default function SalesOrdersPage() {
                             </p>
                         </div>
                     </div>
+
+                    <Link
+                        href="/inventory"
+                        className="rounded-xl border border-slate-700 px-5 py-3 text-center text-sm font-bold transition hover:bg-slate-900"
+                    >
+                        Inventory Dashboard →
+                    </Link>
 
                     <Link
                         href="/sales-order"
@@ -338,11 +406,9 @@ export default function SalesOrdersPage() {
                     <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-700">
                         Order Administration
                     </p>
-
                     <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
                         Sales Orders
                     </h1>
-
                     <p className="mt-2 text-sm text-slate-500">
                         Search, review, track and share your recorded customer orders.
                     </p>
@@ -396,11 +462,9 @@ export default function SalesOrdersPage() {
                         <p className="text-sm font-medium text-slate-500">
                             Total Sales Orders
                         </p>
-
                         <p className="mt-2 text-3xl font-black text-slate-950">
                             {ready ? orders.length : "—"}
                         </p>
-
                         <p className="mt-2 text-xs text-slate-400">
                             Recorded in this browser
                         </p>
@@ -410,11 +474,9 @@ export default function SalesOrdersPage() {
                         <p className="text-sm font-medium text-slate-500">
                             Matching Results
                         </p>
-
                         <p className="mt-2 text-3xl font-black text-blue-700">
                             {ready ? filteredOrders.length : "—"}
                         </p>
-
                         <p className="mt-2 text-xs text-slate-400">
                             Based on your search
                         </p>
@@ -425,7 +487,6 @@ export default function SalesOrdersPage() {
                     <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <h2 className="text-lg font-bold">Order Register</h2>
-
                             <p className="mt-1 text-sm text-slate-500">
                                 Review saved orders and export records for sharing.
                             </p>
@@ -436,7 +497,7 @@ export default function SalesOrdersPage() {
                                 aria-label="Search sales orders"
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Search customer, item, status..."
+                                placeholder="Search customer, company, manufacturer, item..."
                                 className={inputClass + " sm:min-w-64"}
                             />
 
@@ -467,19 +528,16 @@ export default function SalesOrdersPage() {
                             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
                                 {orders.length === 0 ? "▤" : "⌕"}
                             </div>
-
                             <h3 className="mt-5 text-lg font-bold">
                                 {orders.length === 0
                                     ? "No sales orders yet"
                                     : "No matching orders"}
                             </h3>
-
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
                                 {orders.length === 0
                                     ? "Create your first order using the Sales Order form. Once submitted, it will appear here."
                                     : "Try another search term or clear the search box."}
                             </p>
-
                             {orders.length === 0 && (
                                 <Link
                                     href="/sales-order"
@@ -491,11 +549,12 @@ export default function SalesOrdersPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1450px] text-left text-sm">
+                            <table className="w-full min-w-[1350px] text-left text-sm">
                                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                                     <tr>
                                         <th className="px-5 py-4 font-bold">Order</th>
                                         <th className="px-5 py-4 font-bold">Company</th>
+                                        <th className="px-5 py-4 font-bold">Manufacturer / Trader</th>
                                         <th className="px-5 py-4 font-bold">Customer</th>
                                         <th className="px-5 py-4 font-bold">Item Name</th>
                                         <th className="px-5 py-4 font-bold">Quantity</th>
@@ -503,7 +562,6 @@ export default function SalesOrdersPage() {
                                         <th className="px-5 py-4 font-bold">Freight</th>
                                         <th className="px-5 py-4 font-bold">GST Extra</th>
                                         <th className="px-5 py-4 font-bold">Payment Terms</th>
-                                        <th className="px-5 py-4 font-bold">Status</th>
                                         <th className="px-5 py-4 font-bold">Filled By</th>
                                         <th className="px-5 py-4 font-bold">IP Address</th>
                                         <th className="px-5 py-4 font-bold">Actions</th>
@@ -529,6 +587,12 @@ export default function SalesOrdersPage() {
                                             <td className="px-5 py-4">
                                                 <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-800">
                                                     {order.companyName || "—"}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-5 py-4">
+                                                <span className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-800">
+                                                    {order.manufacturerName || "—"}
                                                 </span>
                                             </td>
 
@@ -559,13 +623,12 @@ export default function SalesOrdersPage() {
 
                                             <td className="px-5 py-4">
                                                 <span
-                                                    className={`inline-flex whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${
-                                                        order.gstExtra === true
-                                                            ? "bg-emerald-50 text-emerald-700"
-                                                            : order.gstExtra === false
+                                                    className={`inline-flex whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${order.gstExtra === true
+                                                        ? "bg-emerald-50 text-emerald-700"
+                                                        : order.gstExtra === false
                                                             ? "bg-slate-100 text-slate-600"
                                                             : "bg-amber-50 text-amber-700"
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {getGstExtra(order)}
                                                 </span>
@@ -573,14 +636,6 @@ export default function SalesOrdersPage() {
 
                                             <td className="px-5 py-4 text-slate-600">
                                                 {order.paymentTerms || "—"}
-                                            </td>
-
-                                            <td className="px-5 py-4">
-                                                <span
-                                                    className={`inline-flex whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${getStatusClass(order.status || "Pending")}`}
-                                                >
-                                                    {order.status || "Pending"}
-                                                </span>
                                             </td>
 
                                             <td className="px-5 py-4 text-slate-700">
@@ -661,11 +716,23 @@ export default function SalesOrdersPage() {
                         <form onSubmit={saveEditedOrder} className="p-6">
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 {[
-                                    ["companyName", "Company Name"], ["place", "Place"], ["customerName", "Customer Name"],
-                                    ["customerAddress", "Customer Address"], ["customerNumber", "Customer Number"], ["emailId", "Customer Email"],
-                                    ["itemName", "Item Name"], ["rate", "Rate"], ["freight", "Freight"], ["exFor", "Ex/For"],
-                                    ["paymentTerms", "Payment Terms"], ["filledBy", "Form Filled By"], ["brokerName", "Broker Name"],
-                                    ["brokerContactNumber", "Broker Contact Number"], ["brokerEmailId", "Broker Email"],
+                                    ["companyName", "Company Name"],
+                                    ["manufacturerName", "Manufacturer / Trader"],
+                                    ["place", "Place"],
+                                    ["customerName", "Customer Name"],
+                                    ["customerAddress", "Customer Address"],
+                                    ["customerNumber", "Customer Number"],
+                                    ["emailId", "Customer Email"],
+                                    ["itemName", "Item Name"],
+                                    ["rate", "Rate"],
+                                    ["freight", "Freight"],
+                                    ["exFor", "Ex/For"],
+                                    ["paymentTerms", "Payment Terms"],
+                                    ["filledBy", "Form Filled By"],
+                                    ["brokerName", "Broker Name"],
+                                    ["brokerContactNumber", "Broker Contact Number"],
+                                    ["brokerEmailId", "Broker Email"],
+                                    ["otherPersonName", "Other Person Name"],
                                 ].map(([key, label]) => (
                                     <label key={key} className="block">
                                         <span className="mb-1.5 block text-xs font-bold text-slate-600">{label}</span>
@@ -686,12 +753,6 @@ export default function SalesOrdersPage() {
                                             {[["L", "L"], ["KG", "KG"], ["MT", "MT"], ["BAG", "BAG"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                         </select>
                                     </div>
-                                </label>
-                                <label className="block">
-                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">Order Status</span>
-                                    <select value={editForm.status || "Pending"} onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))} className={inputClass}>
-                                        {["Pending", "Confirmed", "Processing", "Dispatched", "Delivered", "Cancelled"].map((status) => <option key={status}>{status}</option>)}
-                                    </select>
                                 </label>
                                 <label className="block">
                                     <span className="mb-1.5 block text-xs font-bold text-slate-600">GST Setting</span>
@@ -730,7 +791,6 @@ export default function SalesOrdersPage() {
                                 <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
                                     Sales Order Details
                                 </p>
-
                                 <h2 id="order-detail-title" className="mt-1 text-xl font-black">
                                     {selectedOrder.orderNumber ||
                                         `Order #${selectedOrder.serialNo}`}
@@ -749,10 +809,10 @@ export default function SalesOrdersPage() {
                         <div className="grid gap-4 p-6 sm:grid-cols-2">
                             {[
                                 ["Company Name", selectedOrder.companyName],
+                                ["Manufacturer / Trader", selectedOrder.manufacturerName],
                                 ["Order Date", selectedOrder.orderDate],
                                 ["Place", selectedOrder.place],
                                 ["Quantity", getQuantity(selectedOrder)],
-                                ["Status", selectedOrder.status || "Pending"],
                                 ["Form Filled By", selectedOrder.filledBy],
                                 ["IP Address", selectedOrder.ipAddress],
                                 ["Customer Name", selectedOrder.customerName],
@@ -768,6 +828,7 @@ export default function SalesOrdersPage() {
                                 ["Broker Name", selectedOrder.brokerName],
                                 ["Broker Contact", selectedOrder.brokerContactNumber],
                                 ["Broker Email", selectedOrder.brokerEmailId],
+                                ["Other Person Name", selectedOrder.otherPersonName],
                             ].map(([label, value]) => (
                                 <div
                                     key={label}
@@ -776,11 +837,10 @@ export default function SalesOrdersPage() {
                                     <p className="text-xs font-semibold text-slate-500">
                                         {label}
                                     </p>
-
                                     <p className="mt-1 break-words text-sm font-bold text-slate-800">
                                         {value === null ||
-                                        value === undefined ||
-                                        value === ""
+                                            value === undefined ||
+                                            value === ""
                                             ? "—"
                                             : value}
                                     </p>

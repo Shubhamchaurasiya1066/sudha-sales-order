@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+    recordStockMovement,
+} from "@/lib/inventory";
 
 const STORAGE_KEY = "sudha_purchase_orders";
 
@@ -49,6 +52,69 @@ function formatCurrency(value) {
 
 function getStatus(order) {
     return STATUS_OPTIONS.includes(order.status) ? order.status : "Pending";
+}
+
+function createMovementEventId(orderId, action) {
+    return `purchase-${orderId}-${action}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+}
+
+function recordPurchaseMovement(order, movementType, direction, action) {
+    const result = recordStockMovement({
+        sourceType: "purchase",
+        sourceId: String(order.id),
+        eventId: createMovementEventId(order.id, action),
+        movementType,
+        ...(direction ? { direction } : {}),
+        itemName: String(order.itemName || "").trim(),
+        qty: Number(order.qty),
+        unit: order.qtyUnit || "KG",
+        date: new Date().toISOString(),
+        description: `${action}: ${order.purchaseOrderNumber || "Purchase Order"}`,
+    });
+
+    if (!result?.success) {
+        throw new Error(
+            result?.message || "Unable to update the stock ledger."
+        );
+    }
+
+    return result;
+}
+
+function sameStockDetails(first, second) {
+    return (
+        String(first?.itemName || "").trim().toLowerCase() ===
+        String(second?.itemName || "").trim().toLowerCase() &&
+        String(first?.qtyUnit || "KG").toUpperCase() ===
+        String(second?.qtyUnit || "KG").toUpperCase() &&
+        Number(first?.qty || 0) === Number(second?.qty || 0)
+    );
+}
+
+function reconcilePurchaseStock(previousOrder, nextOrder, action) {
+    const wasCompleted = getStatus(previousOrder) === "Completed";
+    const isCompleted = getStatus(nextOrder) === "Completed";
+    const stockChanged = !sameStockDetails(previousOrder, nextOrder);
+
+    if (wasCompleted && (!isCompleted || stockChanged)) {
+        recordPurchaseMovement(
+            previousOrder,
+            "REVERSAL",
+            "OUT",
+            `${action}-reverse-old-stock`
+        );
+    }
+
+    if (isCompleted && (!wasCompleted || stockChanged)) {
+        recordPurchaseMovement(
+            nextOrder,
+            "IN",
+            undefined,
+            `${action}-add-new-stock`
+        );
+    }
 }
 
 export default function PurchaseOrdersPage() {
@@ -126,16 +192,40 @@ export default function PurchaseOrdersPage() {
 
     function updateStatus(orderId, newStatus) {
         try {
+            const previousOrder = orders.find(
+                (order) => String(order.id) === String(orderId)
+            );
+
+            if (!previousOrder) {
+                showNotice("Purchase order was not found.", "error");
+                return;
+            }
+
+            const updatedOrder = {
+                ...previousOrder,
+                status: newStatus,
+                updatedAt: new Date().toISOString(),
+            };
+
+            reconcilePurchaseStock(
+                previousOrder,
+                updatedOrder,
+                "status-change"
+            );
+
             const updatedOrders = orders.map((order) =>
                 String(order.id) === String(orderId)
-                    ? { ...order, status: newStatus }
+                    ? updatedOrder
                     : order
             );
 
             persistOrders(updatedOrders);
             showNotice("Purchase order status updated successfully.");
-        } catch {
-            showNotice("Unable to update the status.", "error");
+        } catch (error) {
+            showNotice(
+                error?.message || "Unable to update the status.",
+                "error"
+            );
         }
     }
 
@@ -248,6 +338,13 @@ export default function PurchaseOrdersPage() {
         }
 
         try {
+            // Update stock ledger when a completed purchase changes.
+            reconcilePurchaseStock(
+                editingOrder,
+                updatedOrder,
+                "edit"
+            );
+
             const updatedOrders = orders.map((order) =>
                 String(order.id) === String(editingOrder.id)
                     ? updatedOrder
@@ -256,11 +353,15 @@ export default function PurchaseOrdersPage() {
 
             persistOrders(updatedOrders);
             setEditingOrder(null);
+
             showNotice(
                 `${updatedOrder.purchaseOrderNumber} updated successfully.`
             );
-        } catch {
-            showNotice("Unable to save your changes.", "error");
+        } catch (error) {
+            showNotice(
+                error?.message || "Unable to save your changes.",
+                "error"
+            );
         }
     }
 
@@ -268,17 +369,32 @@ export default function PurchaseOrdersPage() {
         if (!deleteOrder) return;
 
         try {
+            if (getStatus(deleteOrder) === "Completed") {
+                recordPurchaseMovement(
+                    deleteOrder,
+                    "REVERSAL",
+                    "OUT",
+                    "delete-reverse-stock"
+                );
+            }
+
             const updatedOrders = orders.filter(
-                (order) => String(order.id) !== String(deleteOrder.id)
+                (order) =>
+                    String(order.id) !== String(deleteOrder.id)
             );
 
             persistOrders(updatedOrders);
+
             showNotice(
                 `${deleteOrder.purchaseOrderNumber || "Purchase order"} deleted successfully.`
             );
+
             setDeleteOrder(null);
-        } catch {
-            showNotice("Unable to delete this purchase order.", "error");
+        } catch (error) {
+            showNotice(
+                error?.message || "Unable to delete this purchase order.",
+                "error"
+            );
         }
     }
 
@@ -391,6 +507,12 @@ export default function PurchaseOrdersPage() {
 
                     <div className="flex flex-wrap gap-3">
                         <Link
+                            href="/inventory"
+                            className="inline-flex items-center justify-center rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold transition hover:bg-slate-900"
+                        >
+                            Inventory Dashboard →
+                        </Link>
+                        <Link
                             href="/purchase-order"
                             className="inline-flex items-center justify-center rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-500"
                         >
@@ -426,14 +548,14 @@ export default function PurchaseOrdersPage() {
                         role={noticeType === "error" ? "alert" : "status"}
                         aria-live="polite"
                         className={`mb-6 flex items-start justify-between gap-3 rounded-2xl border bg-white p-4 shadow-sm ${noticeType === "error"
-                                ? "border-red-200"
-                                : "border-emerald-200"
+                            ? "border-red-200"
+                            : "border-emerald-200"
                             }`}
                     >
                         <p
                             className={`text-sm font-semibold ${noticeType === "error"
-                                    ? "text-red-700"
-                                    : "text-emerald-700"
+                                ? "text-red-700"
+                                : "text-emerald-700"
                                 }`}
                         >
                             {notice}
@@ -663,7 +785,7 @@ export default function PurchaseOrdersPage() {
                                                     {getStatus(order)}
                                                 </span>
 
-                                                
+
                                             </td>
 
                                             <td className="px-5 py-5">
@@ -1270,3 +1392,7 @@ export default function PurchaseOrdersPage() {
         </main>
     );
 }
+
+
+
+ 

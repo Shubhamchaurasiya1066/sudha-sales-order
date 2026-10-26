@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getAvailableStock } from "@/lib/inventory";
 
 const companies = [
     "Sudha Chemical Company",
@@ -10,12 +11,41 @@ const companies = [
     "Nirmal Agencies Bilaspur",
 ];
 
+const manufacturerOptions = [
+    "DCM Shriram Industries Ltd.",
+    "Grassim Industries Limited",
+    "Meghmani Organics Limited",
+    "GUJRAT ALKALIES AND CHEMICALS LIMITED (GACL)",
+    "KUTCH COPPER LIMITED",
+    "Atul-Indian Chemical Company",
+    "Swastik Plasticizers",
+    "Paradeep Phosphates Limited",
+    "Lanxess-Energizing Chemistry",
+    "Khaitan Chemicals and Fertilizers Limited",
+    "Shreas Industries Limited",
+    "TGV-SRAAC Limited Sree Rayalaseema Alkalies and Allied Chemicals Limited",
+    "The Andhra Sugars Ltd.",
+    "Payal Polyplast Pvt. Ltd.",
+    "Accord Chemical Corportion",
+];
+
+// ✅ Manufacturer → Destinations mapping
+// Agar kisi manufacturer ki entry nahi hai ya khali array hai,
+// to uske liye Destination field bilkul nahi dikhega
+const manufacturerDestinations = {
+    "DCM Shriram Industries Ltd.": ["Kota","Jhagadia"],
+    "Grassim Industries Limited": ["Rehla", "Renukoot", "Magda"],
+    "Khaitan Chemicals and Fertilizers Limited": ["Jhansi", "Maluan", "Rajnandgoan","Nimrani"],
+    // ✅ "SHRIRAM VINYL & CHEMICAL INDUSTRIES" ke liye koi destination nahi
+    // Isliye is manufacturer ko select karne par Destination field nahi dikhega
+};
+
 const initialForm = {
     companyName: "",
+    manufacturerName: "",
     place: "",
     qty: "",
     qtyUnit: "KG",
-    status: "Pending",
     filledBy: "",
     ipAddress: "",
     customerName: "",
@@ -30,18 +60,18 @@ const initialForm = {
     brokerName: "",
     brokerContactNumber: "",
     brokerEmailId: "",
+    otherPersonName: "",
     gstExtra: false,
 };
 
 const fields = [
-    { name: "place", label: "Place", placeholder: "Enter place", required: true },
     { name: "qty", label: "Quantity", placeholder: "Enter quantity", type: "number", required: true },
     { name: "customerName", label: "Customer Name", placeholder: "Enter customer name", required: true },
     { name: "customerAddress", label: "Customer Address", placeholder: "Enter complete address", required: true, textarea: true },
     { name: "customerNumber", label: "Customer Number", placeholder: "10-digit mobile number", type: "tel", required: true },
     { name: "emailId", label: "Customer Email ID", placeholder: "customer@example.com", type: "email", required: true },
     { name: "rate", label: "Rate (₹)", placeholder: "Enter rate", type: "number", required: true },
-    { name: "freight", label: "Freight (₹)", placeholder: "Enter freight amount", type: "number", required: true },
+    { name: "freight", label: "Freight (₹)", placeholder: "Enter freight amount (optional)", type: "number", required: false },
     {
         name: "itemName", label: "Item / Chemical Name", placeholder: "Select chemical / product", required: true, options: [
             "Sulphuric Acid (98%)",
@@ -115,11 +145,38 @@ export default function SalesOrderPage() {
         return () => window.clearTimeout(timeoutId);
     }, [success]);
 
+    // ✅ Manufacturer select karne par destinations
+    const availableDestinations = form.manufacturerName
+        ? manufacturerDestinations[form.manufacturerName] || []
+        : [];
+
+    // ✅ Destination field dikhega ya nahi
+    const showDestinationField = availableDestinations.length > 0;
+
     function updateField(event) {
         const { name, value } = event.target;
 
-        setForm((previous) => ({ ...previous, [name]: value }));
-        setErrors((previous) => ({ ...previous, [name]: "" }));
+        setForm((previous) => {
+            const next = { ...previous, [name]: value };
+
+            // ✅ Manufacturer change → place reset
+            if (name === "manufacturerName") {
+                next.place = "";
+            }
+
+            // Ex/For rule: "For" select → freight clear
+            if (name === "exFor" && value === "For") {
+                next.freight = "";
+            }
+
+            return next;
+        });
+
+        setErrors((previous) => ({
+            ...previous,
+            [name]: "",
+            ...(name === "manufacturerName" ? { place: "" } : {}),
+        }));
         setSuccess("");
     }
 
@@ -127,10 +184,31 @@ export default function SalesOrderPage() {
         const nextErrors = {};
 
         if (!form.companyName) nextErrors.companyName = "Please select a company.";
-        if (!form.place.trim()) nextErrors.place = "Place is required.";
-        if (!form.qty || Number(form.qty) <= 0) {
-            nextErrors.qty = "Quantity must be greater than zero.";
+        if (!form.manufacturerName) nextErrors.manufacturerName = "Please select a manufacturer/trader.";
+
+        // ✅ Place required sirf tab jab destinations available ho
+        if (showDestinationField && !form.place) {
+            nextErrors.place = "Please select a destination / place.";
         }
+
+        if (
+            !form.qty ||
+            !Number.isFinite(Number(form.qty)) ||
+            Number(form.qty) <= 0
+        ) {
+            nextErrors.qty = "Quantity must be greater than zero.";
+        } else if (form.itemName) {
+            const requestedQty = Number(form.qty);
+            const stock = getAvailableStock(form.itemName, form.qtyUnit);
+            const availableQty = Number(stock.availableQty) || 0;
+
+            if (requestedQty > availableQty) {
+                nextErrors.qty =
+                    `Insufficient stock! Available: ${availableQty} ${form.qtyUnit}. ` +
+                    `Requested: ${requestedQty} ${form.qtyUnit}.`;
+            }
+        }
+
         if (!form.customerName.trim()) {
             nextErrors.customerName = "Customer name is required.";
         }
@@ -150,7 +228,10 @@ export default function SalesOrderPage() {
             nextErrors.rate = "Enter a valid rate.";
         }
 
-        if (form.freight === "" || Number(form.freight) < 0) {
+        if (
+            form.freight !== "" &&
+            (!Number.isFinite(Number(form.freight)) || Number(form.freight) < 0)
+        ) {
             nextErrors.freight = "Enter a valid freight amount.";
         }
 
@@ -227,6 +308,9 @@ export default function SalesOrderPage() {
 
             const newOrder = {
                 ...form,
+                // ✅ Agar destination field nahi thi, place khali "" hi rahega
+                place: showDestinationField ? form.place : "",
+                freight: form.exFor === "For" ? 0 : Number(form.freight) || 0,
                 ipAddress: capturedIpAddress,
                 serialNo: nextSerial,
                 orderNumber,
@@ -358,7 +442,8 @@ export default function SalesOrderPage() {
                             </h3>
 
                             <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
-                                <div>
+                                {/* ============ COMPANY (Full width) ============ */}
+                                <div className="md:col-span-2">
                                     <label
                                         htmlFor="companyName"
                                         className="mb-2 block text-sm font-semibold text-slate-700"
@@ -371,7 +456,7 @@ export default function SalesOrderPage() {
                                         name="companyName"
                                         value={form.companyName}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.companyName
+                                        className={`w-full rounded-xl border bg-white px-4 py-4 text-base font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.companyName
                                             ? "border-red-400"
                                             : "border-slate-200"
                                             }`}
@@ -391,6 +476,76 @@ export default function SalesOrderPage() {
                                     )}
                                 </div>
 
+                                {/* ============ MANUFACTURER / TRADER (Full width) ============ */}
+                                <div className="md:col-span-2">
+                                    <label
+                                        htmlFor="manufacturerName"
+                                        className="mb-2 block text-sm font-semibold text-slate-700"
+                                    >
+                                        Manufacturer / Trader Name <span className="text-red-500">*</span>
+                                    </label>
+
+                                    <select
+                                        id="manufacturerName"
+                                        name="manufacturerName"
+                                        value={form.manufacturerName}
+                                        onChange={updateField}
+                                        className={`w-full rounded-xl border bg-white px-4 py-4 text-base font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.manufacturerName
+                                            ? "border-red-400"
+                                            : "border-slate-200"
+                                            }`}
+                                    >
+                                        <option value="">Select manufacturer / trader</option>
+                                        {manufacturerOptions.map((manufacturer) => (
+                                            <option key={manufacturer} value={manufacturer}>
+                                                {manufacturer}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    {errors.manufacturerName && (
+                                        <p className="mt-1 text-xs text-red-600">
+                                            {errors.manufacturerName}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* ============ DESTINATION / PLACE (sirf tab dikhe jab destinations available ho) ============ */}
+                                {showDestinationField && (
+                                    <div className="md:col-span-2">
+                                        <label
+                                            htmlFor="place"
+                                            className="mb-2 block text-sm font-semibold text-slate-700"
+                                        >
+                                            Destination / Place <span className="text-red-500">*</span>
+                                        </label>
+
+                                        <select
+                                            id="place"
+                                            name="place"
+                                            value={form.place}
+                                            onChange={updateField}
+                                            className={`w-full rounded-xl border bg-white px-4 py-4 text-base font-semibold outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 ${errors.place
+                                                ? "border-red-400"
+                                                : "border-emerald-200"
+                                                }`}
+                                        >
+                                            <option value="">Select destination / place</option>
+                                            {availableDestinations.map((destination) => (
+                                                <option key={destination} value={destination}>
+                                                    📍 {destination}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {errors.place && (
+                                            <p className="mt-1 text-xs text-red-600">
+                                                {errors.place}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                         Serial Number
@@ -399,14 +554,6 @@ export default function SalesOrderPage() {
                                         Auto-generated on submission
                                     </p>
                                 </div>
-
-                                <Field
-                                    field={fields[0]}
-                                    value={form[fields[0].name]}
-                                    onChange={updateField}
-                                    error={errors[fields[0].name]}
-                                />
-
 
                                 <div className="w-full min-w-0">
                                     <label
@@ -449,7 +596,6 @@ export default function SalesOrderPage() {
                                         </p>
                                     )}
                                 </div>
-
 
                                 <div>
                                     <label
@@ -517,30 +663,6 @@ export default function SalesOrderPage() {
                                         </p>
                                     )}
                                 </div>
-
-                                <div>
-                                    <label
-                                        htmlFor="status"
-                                        className="mb-2 block text-sm font-semibold text-slate-700"
-                                    >
-                                        Order Status <span className="text-red-500">*</span>
-                                    </label>
-
-                                    <select
-                                        id="status"
-                                        name="status"
-                                        value={form.status}
-                                        onChange={updateField}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                                    >
-                                        <option value="Pending">Pending</option>
-                                        <option value="Confirmed">Confirmed</option>
-                                        <option value="Processing">Processing</option>
-                                        <option value="Dispatched">Dispatched</option>
-                                        <option value="Delivered">Delivered</option>
-                                        <option value="Cancelled">Cancelled</option>
-                                    </select>
-                                </div>
                             </div>
                         </section>
 
@@ -555,16 +677,29 @@ export default function SalesOrderPage() {
                             </h3>
 
                             <div className="grid gap-5 md:grid-cols-2">
-                                {fields.slice(2, 8).map((field) => (
-                                    <Field
-                                        key={field.name}
-                                        field={field}
-                                        value={form[field.name]}
-                                        onChange={updateField}
-                                        error={errors[field.name]}
-                                    />
-                                ))}
+                                {fields.slice(0, 7).map((field) => {
+                                    if (field.name === "freight" && form.exFor !== "Ex") {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <Field
+                                            key={field.name}
+                                            field={field}
+                                            value={form[field.name]}
+                                            onChange={updateField}
+                                            error={errors[field.name]}
+                                        />
+                                    );
+                                })}
                             </div>
+
+                            {form.exFor === "For" && (
+                                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                    ℹ️ <strong>Ex/For = "For"</strong> selected hai. Freight field nahi dikhega.
+                                    Freight sirf tab dikhta hai jab <strong>"Ex"</strong> select karo.
+                                </div>
+                            )}
 
                             <div className="mt-5">
                                 <label className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 sm:p-4">
@@ -635,7 +770,7 @@ export default function SalesOrderPage() {
                             </h3>
 
                             <div className="grid gap-5 md:grid-cols-2">
-                                {fields.slice(8).map((field) => (
+                                {fields.slice(7).map((field) => (
                                     <Field
                                         key={field.name}
                                         field={field}
@@ -644,6 +779,30 @@ export default function SalesOrderPage() {
                                         error={errors[field.name]}
                                     />
                                 ))}
+                            </div>
+
+                            <div className="mt-6 rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-4">
+                                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-amber-800">
+                                    👤 Other Person Details (Optional)
+                                </p>
+
+                                <div>
+                                    <label
+                                        htmlFor="otherPersonName"
+                                        className="mb-2 block text-sm font-semibold text-slate-700"
+                                    >
+                                        Other Person Name
+                                    </label>
+                                    <input
+                                        id="otherPersonName"
+                                        name="otherPersonName"
+                                        type="text"
+                                        value={form.otherPersonName}
+                                        onChange={updateField}
+                                        placeholder="Enter other person name"
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
+                                    />
+                                </div>
                             </div>
                         </section>
 
