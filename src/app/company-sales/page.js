@@ -5,8 +5,6 @@ import Link from "next/link";
 
 const SALES_KEY = "sudha_sales_orders";
 
-const STATUS_OPTIONS = ["Pending", "Confirmed", "Processing", "Dispatched", "Delivered", "Cancelled"];
-
 function formatCurrency(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "₹0.00";
@@ -21,25 +19,13 @@ function formatQty(value) {
   return num.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-function statusClass(status) {
-  const styles = {
-    Pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
-    Confirmed: "bg-blue-50 text-blue-700 ring-blue-600/20",
-    Processing: "bg-violet-50 text-violet-700 ring-violet-600/20",
-    Dispatched: "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
-    Delivered: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-    Cancelled: "bg-red-50 text-red-700 ring-red-600/20",
-  };
-  return styles[status] || "bg-slate-100 text-slate-700 ring-slate-500/20";
-}
-
 export default function CompanySalesPage() {
   const [orders, setOrders] = useState([]);
   const [ready, setReady] = useState(false);
 
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [manufacturerFilter, setManufacturerFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openCompanies, setOpenCompanies] = useState({});
@@ -63,6 +49,14 @@ export default function CompanySalesPage() {
     return Array.from(set).sort();
   }, [orders]);
 
+  const manufacturerList = useMemo(() => {
+    const set = new Set();
+    orders.forEach((o) => {
+      if (o.manufacturerName) set.add(o.manufacturerName);
+    });
+    return Array.from(set).sort();
+  }, [orders]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const from = fromDate ? new Date(fromDate) : null;
@@ -73,23 +67,26 @@ export default function CompanySalesPage() {
       const matchSearch =
         !q ||
         String(o.companyName || "").toLowerCase().includes(q) ||
+        String(o.manufacturerName || "").toLowerCase().includes(q) ||
         String(o.itemName || "").toLowerCase().includes(q) ||
         String(o.orderNumber || "").toLowerCase().includes(q) ||
         String(o.customerName || "").toLowerCase().includes(q) ||
         String(o.place || "").toLowerCase().includes(q) ||
         String(o.brokerName || "").toLowerCase().includes(q) ||
+        String(o.otherPersonName || "").toLowerCase().includes(q) ||
         String(o.filledBy || "").toLowerCase().includes(q);
 
       const matchCompany = !companyFilter || o.companyName === companyFilter;
-      const matchStatus = !statusFilter || (o.status || "Pending") === statusFilter;
+      const matchManufacturer =
+        !manufacturerFilter || o.manufacturerName === manufacturerFilter;
 
       const orderDate = o.createdAt ? new Date(o.createdAt) : null;
       const matchFrom = !from || (orderDate && orderDate >= from);
       const matchTo = !to || (orderDate && orderDate <= to);
 
-      return matchSearch && matchCompany && matchStatus && matchFrom && matchTo;
+      return matchSearch && matchCompany && matchManufacturer && matchFrom && matchTo;
     });
-  }, [orders, search, companyFilter, statusFilter, fromDate, toDate]);
+  }, [orders, search, companyFilter, manufacturerFilter, fromDate, toDate]);
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -105,6 +102,8 @@ export default function CompanySalesPage() {
           totalFreight: 0,
           orderCount: 0,
           customers: new Set(),
+          manufacturers: new Set(),
+          destinations: new Set(),
         });
       }
       const g = map.get(company);
@@ -119,10 +118,17 @@ export default function CompanySalesPage() {
       g.totalFreight += freight;
       g.orderCount += 1;
       if (o.customerName) g.customers.add(o.customerName);
+      if (o.manufacturerName) g.manufacturers.add(o.manufacturerName);
+      if (o.place) g.destinations.add(o.place);
     });
 
     return Array.from(map.values())
-      .map((g) => ({ ...g, customers: g.customers.size }))
+      .map((g) => ({
+        ...g,
+        customers: g.customers.size,
+        manufacturers: g.manufacturers.size,
+        destinations: g.destinations.size,
+      }))
       .sort((a, b) => b.totalValue - a.totalValue);
   }, [filtered]);
 
@@ -147,23 +153,39 @@ export default function CompanySalesPage() {
     setOpenCompanies(n);
   }
   function resetFilters() {
-    setSearch(""); setCompanyFilter(""); setStatusFilter("");
+    setSearch(""); setCompanyFilter(""); setManufacturerFilter("");
     setFromDate(""); setToDate("");
   }
 
   function exportCSV() {
-    const headers = ["Company", "Order No", "Order Date", "Customer", "Item", "Qty", "Unit", "Rate", "Total", "Freight", "Payment Terms", "Status", "Filled By"];
+    const headers = [
+      "Company", "Manufacturer / Trader", "Order No", "Order Date",
+      "Customer", "Customer Number", "Destination", "Item",
+      "Qty", "Unit", "Rate", "Total", "Freight",
+      "Payment Terms", "Other Person Name", "Filled By",
+    ];
     const rows = [];
     grouped.forEach((g) => {
       g.items.forEach((o) => {
         const qty = Number(o.qty) || 0;
         const rate = Number(o.rate) || 0;
         rows.push([
-          g.company, o.orderNumber || "", o.orderDate || "",
-          o.customerName || "", o.itemName || "", qty, o.qtyUnit || "",
-          rate.toFixed(2), (qty * rate).toFixed(2),
+          g.company,
+          o.manufacturerName || "",
+          o.orderNumber || "",
+          o.orderDate || "",
+          o.customerName || "",
+          o.customerNumber || "",
+          o.place || "",
+          o.itemName || "",
+          qty,
+          o.qtyUnit || "",
+          rate.toFixed(2),
+          (qty * rate).toFixed(2),
           (Number(o.freight) || 0).toFixed(2),
-          o.paymentTerms || "", o.status || "Pending", o.filledBy || "",
+          o.paymentTerms || "",
+          o.otherPersonName || "",
+          o.filledBy || "",
         ]);
       });
     });
@@ -209,7 +231,9 @@ export default function CompanySalesPage() {
         <div className="mb-8">
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-700">Sales Analytics</p>
           <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Company-wise Sales Dashboard</h1>
-          <p className="mt-2 text-sm text-slate-500">Har company ke saare customer orders, products aur totals ek jagah.</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Har company ke saare customer orders, manufacturers, destinations aur totals ek jagah.
+          </p>
         </div>
 
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
@@ -231,19 +255,19 @@ export default function CompanySalesPage() {
         </div>
 
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
             <input value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="🔍 Search company, customer, item, order no..."
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10" />
+              placeholder="🔍 Search company, manufacturer, customer, item..."
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 lg:col-span-2" />
             <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500">
               <option value="">All Companies</option>
               {companyList.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            <select value={manufacturerFilter} onChange={(e) => setManufacturerFilter(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500">
-              <option value="">All Statuses</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              <option value="">All Manufacturers</option>
+              {manufacturerList.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <div className="flex gap-2">
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
@@ -286,7 +310,12 @@ export default function CompanySalesPage() {
                       <div className="min-w-0">
                         <p className="truncate text-base font-bold text-slate-900">{g.company}</p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {g.orderCount} order{g.orderCount > 1 ? "s" : ""} · {g.items.length} product line{g.items.length > 1 ? "s" : ""} · {g.customers} customer{g.customers > 1 ? "s" : ""} · Total: <span className="font-semibold text-blue-700">{formatCurrency(g.totalValue)}</span>
+                          {g.orderCount} order{g.orderCount > 1 ? "s" : ""} ·{" "}
+                          {g.items.length} product line{g.items.length > 1 ? "s" : ""} ·{" "}
+                          {g.customers} customer{g.customers > 1 ? "s" : ""} ·{" "}
+                          {g.manufacturers} manufacturer{g.manufacturers > 1 ? "s" : ""} ·{" "}
+                          {g.destinations} destination{g.destinations > 1 ? "s" : ""} · Total:{" "}
+                          <span className="font-semibold text-blue-700">{formatCurrency(g.totalValue)}</span>
                         </p>
                       </div>
                     </div>
@@ -301,16 +330,18 @@ export default function CompanySalesPage() {
 
                   {open && (
                     <div className="overflow-x-auto border-t border-slate-100">
-                      <table className="w-full min-w-[1000px] text-left text-sm">
+                      <table className="w-full min-w-[1200px] text-left text-sm">
                         <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                           <tr>
                             <th className="px-4 py-3 font-bold">Order / Date</th>
+                            <th className="px-4 py-3 font-bold">Manufacturer</th>
+                            <th className="px-4 py-3 font-bold">Destination</th>
                             <th className="px-4 py-3 font-bold">Customer</th>
                             <th className="px-4 py-3 font-bold">Product</th>
                             <th className="px-4 py-3 text-right font-bold">Qty</th>
                             <th className="px-4 py-3 text-right font-bold">Rate</th>
                             <th className="px-4 py-3 text-right font-bold">Total</th>
-                            <th className="px-4 py-3 font-bold">Status</th>
+                            <th className="px-4 py-3 font-bold">Other Person</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -324,22 +355,37 @@ export default function CompanySalesPage() {
                                   <p className="text-xs text-slate-400">{o.orderDate || "—"}</p>
                                 </td>
                                 <td className="px-4 py-3">
+                                  {o.manufacturerName ? (
+                                    <span className="inline-block rounded-lg bg-violet-50 px-2 py-1 text-xs font-bold text-violet-800">
+                                      {o.manufacturerName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {o.place ? (
+                                    <span className="inline-block rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800">
+                                      📍 {o.place}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
                                   <p className="font-semibold text-slate-800">{o.customerName || "—"}</p>
                                   <p className="text-xs text-slate-400">{o.customerNumber || ""}</p>
                                 </td>
                                 <td className="px-4 py-3">
                                   <p className="font-semibold text-slate-800">{o.itemName || "—"}</p>
-                                  {o.place && <p className="text-xs text-slate-400">📍 {o.place}</p>}
                                 </td>
                                 <td className="px-4 py-3 text-right tabular-nums">
                                   {formatQty(qty)} <span className="text-xs text-slate-400">{o.qtyUnit || ""}</span>
                                 </td>
                                 <td className="px-4 py-3 text-right tabular-nums text-slate-600">{formatCurrency(rate)}</td>
                                 <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-800">{formatCurrency(qty * rate)}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${statusClass(o.status || "Pending")}`}>
-                                    {o.status || "Pending"}
-                                  </span>
+                                <td className="px-4 py-3 text-xs text-slate-600">
+                                  {o.otherPersonName || "—"}
                                 </td>
                               </tr>
                             );
@@ -347,7 +393,7 @@ export default function CompanySalesPage() {
                         </tbody>
                         <tfoot className="bg-slate-50 font-bold">
                           <tr>
-                            <td colSpan={3} className="px-4 py-3 text-xs uppercase text-slate-600">Company Total</td>
+                            <td colSpan={5} className="px-4 py-3 text-xs uppercase text-slate-600">Company Total</td>
                             <td className="px-4 py-3 text-right tabular-nums text-amber-700">{qtyDisplay || "—"}</td>
                             <td className="px-4 py-3"></td>
                             <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{formatCurrency(g.totalValue)}</td>

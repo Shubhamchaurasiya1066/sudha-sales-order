@@ -6,6 +6,53 @@ import { getAvailableStock } from "@/lib/inventory";
 
 const STORAGE_KEY = "sudha_sales_orders";
 
+// ✅ Company list (form se same)
+const companies = [
+    "Sudha Chemical Company",
+    "Sudha Core Chemical Pvt. Ltd.",
+    "Nirmal Agencies Gwalior",
+    "Nirmal Agencies Bilaspur",
+];
+
+// ✅ Manufacturer list (form se same)
+const manufacturerOptions = [
+   "DCM Shriram Industries Ltd.",
+    "Grassim Industries Limited",
+    "Meghmani Organics Limited",
+    "GUJRAT ALKALIES AND CHEMICALS LIMITED (GACL)",
+    "KUTCH COPPER LIMITED",
+    "Atul-Indian Chemical Company",
+    "Swastik Plasticizers",
+    "Paradeep Phosphates Limited",
+    "Lanxess-Energizing Chemistry",
+    "Khaitan Chemicals and Fertilizers Limited",
+    "Shreas Industries Limited",
+    "TGV-SRAAC Limited Sree Rayalaseema Alkalies and Allied Chemicals Limited",
+    "The Andhra Sugars Ltd.",
+    "Payal Polyplast Pvt. Ltd.",
+    "Accord Chemical Corportion",
+];
+
+// ✅ Manufacturer → Destinations
+const manufacturerDestinations = {
+    "DCM Shriram Industries Ltd.": ["Kota","Jhagadia"],
+    "Grassim Industries Limited": ["Rehla", "Renukoot", "Magda"],
+    "Khaitan Chemicals and Fertilizers Limited": ["Jhansi", "Maluan", "Rajnandgoan","Nimrani"],
+    // "SHRIRAM VINYL & CHEMICAL INDUSTRIES" — koi destination nahi
+};
+
+// ✅ Case-insensitive + trimmed helper
+function getDestinationsForManufacturer(manufacturerName) {
+    if (!manufacturerName) return [];
+    const trimmed = String(manufacturerName).trim();
+    const upper = trimmed.toUpperCase();
+    if (manufacturerDestinations[trimmed]) return manufacturerDestinations[trimmed];
+    const matchedKey = Object.keys(manufacturerDestinations).find(
+        (key) => key.toUpperCase() === upper
+    );
+    return matchedKey ? manufacturerDestinations[matchedKey] : [];
+}
+
 function money(value) {
     return new Intl.NumberFormat("en-IN", {
         style: "currency",
@@ -30,7 +77,7 @@ function downloadCSV(orders) {
         ["orderDate", "Order Date"],
         ["companyName", "Company Name"],
         ["manufacturerName", "Manufacturer / Trader"],
-        ["place", "Place"],
+        ["place", "Place / Destination"],
         ["qty", "Quantity"],
         ["qtyUnit", "Quantity Unit"],
         ["filledBy", "Form Filled By"],
@@ -51,8 +98,7 @@ function downloadCSV(orders) {
         ["otherPersonName", "Other Person Name"],
     ];
 
-    const escapeCSV = (value) =>
-        `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const escapeCSV = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
     const csv = [
         columns.map((column) => escapeCSV(column[1])).join(","),
@@ -71,7 +117,6 @@ function downloadCSV(orders) {
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-
     link.href = url;
     link.download = "sudha-sales-orders.csv";
     document.body.appendChild(link);
@@ -97,7 +142,6 @@ export default function SalesOrdersPage() {
             setOrders([]);
             setNotice("Saved orders could not be read from this browser.");
         }
-
         setReady(true);
     }, []);
 
@@ -109,7 +153,6 @@ export default function SalesOrdersPage() {
 
     const filteredOrders = useMemo(() => {
         const query = search.trim().toLowerCase();
-
         return orders
             .filter((order) => {
                 const searchable = [
@@ -131,17 +174,19 @@ export default function SalesOrdersPage() {
                 ]
                     .join(" ")
                     .toLowerCase();
-
                 return searchable.includes(query);
             })
             .sort((a, b) => Number(b.serialNo) - Number(a.serialNo));
     }, [orders, search]);
 
+    // ✅ Edit modal destinations
+    const editFormDestinations = getDestinationsForManufacturer(editForm.manufacturerName);
+    const showEditPlaceField = editFormDestinations.length > 0;
+
     function deleteOrder(order) {
         const confirmed = window.confirm(
             `Delete Sales Order #${order.serialNo}? This cannot be undone.`
         );
-
         if (!confirmed) return;
 
         const updated = orders.filter((item) => item.id !== order.id);
@@ -149,13 +194,11 @@ export default function SalesOrdersPage() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
             setOrders(updated);
-
             if (selectedOrder?.id === order.id) setSelectedOrder(null);
             if (editingOrder?.id === order.id) {
                 setEditingOrder(null);
                 setEditForm({});
             }
-
             setNotice(
                 `Sales Order #${order.serialNo} deleted. Inventory will recalculate automatically.`
             );
@@ -177,7 +220,6 @@ export default function SalesOrdersPage() {
 
     function saveEditedOrder(event) {
         event.preventDefault();
-
         if (!editingOrder) return;
 
         const qty = Number(editForm.qty);
@@ -193,18 +235,14 @@ export default function SalesOrdersPage() {
             setNotice("Please enter an item name.");
             return;
         }
-
         if (!Number.isFinite(qty) || qty <= 0) {
             setNotice("Quantity must be greater than zero.");
             return;
         }
-
         if (!Number.isFinite(rate) || rate < 0) {
             setNotice("Please enter a valid rate.");
             return;
         }
-
-        // Freight optional — only validate if provided
         if (
             editForm.freight !== "" &&
             editForm.freight !== undefined &&
@@ -215,19 +253,12 @@ export default function SalesOrdersPage() {
             return;
         }
 
-        // Stock validation
         const stock = getAvailableStock(itemName, qtyUnit);
         let availableQty = Number(stock.availableQty) || 0;
-
         const oldItem = String(editingOrder.itemName || "").trim().toLowerCase();
         const oldUnit = String(editingOrder.qtyUnit || "KG").trim().toUpperCase();
-        const sameItem =
-            oldItem === itemName.toLowerCase() && oldUnit === qtyUnit;
-
-        // Restore current order's effect before validating
-        if (sameItem) {
-            availableQty += Number(editingOrder.qty) || 0;
-        }
+        const sameItem = oldItem === itemName.toLowerCase() && oldUnit === qtyUnit;
+        if (sameItem) availableQty += Number(editingOrder.qty) || 0;
 
         if (qty > availableQty) {
             setNotice(
@@ -240,7 +271,6 @@ export default function SalesOrdersPage() {
 
         const updated = orders.map((order) => {
             if (order.id !== editingOrder.id) return order;
-
             return {
                 ...order,
                 ...editForm,
@@ -249,6 +279,7 @@ export default function SalesOrdersPage() {
                 qtyUnit,
                 rate,
                 freight: Number.isFinite(freight) ? freight : 0,
+                place: showEditPlaceField ? editForm.place || "" : "",
                 updatedAt: new Date().toISOString(),
             };
         });
@@ -273,7 +304,7 @@ export default function SalesOrdersPage() {
             ["Order Date", order.orderDate],
             ["Company Name", order.companyName],
             ["Manufacturer / Trader", order.manufacturerName],
-            ["Place", order.place],
+            ["Place / Destination", order.place],
             ["Quantity", getQuantity(order)],
             ["Filled By", order.filledBy],
             ["IP Address", order.ipAddress],
@@ -304,7 +335,6 @@ export default function SalesOrdersPage() {
 
     function shareOrder(order) {
         const subject = `Sudha Chemicals - Sales Order #${order.serialNo}`;
-
         const body = [
             "SUDHA CHEMICALS",
             "SALES ORDER DETAILS",
@@ -314,7 +344,7 @@ export default function SalesOrdersPage() {
             `Order Date: ${order.orderDate || "-"}`,
             `Company: ${order.companyName || "-"}`,
             `Manufacturer / Trader: ${order.manufacturerName || "-"}`,
-            `Place: ${order.place || "-"}`,
+            `Place / Destination: ${order.place || "-"}`,
             `Quantity: ${getQuantity(order)}`,
             `Form Filled By: ${order.filledBy || "-"}`,
             `IP Address: ${order.ipAddress || "Unavailable"}`,
@@ -334,15 +364,12 @@ export default function SalesOrdersPage() {
             `Other Person: ${order.otherPersonName || "-"}`,
         ].join("\n");
 
-        window.location.href =
-            `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
 
     function shareFilteredOrders() {
         if (filteredOrders.length === 0) return;
-
         const subject = "Sudha Chemicals - Sales Orders";
-
         const body = filteredOrders
             .map((order) =>
                 [
@@ -352,15 +379,14 @@ export default function SalesOrdersPage() {
                     `Customer: ${order.customerName || "-"}`,
                     `Item: ${order.itemName || "-"}`,
                     `Qty: ${getQuantity(order)}`,
+                    `Place: ${order.place || "-"}`,
                     `Filled By: ${order.filledBy || "-"}`,
                     `Rate: ${money(order.rate)}`,
                     `GST: ${getGstExtra(order)}`,
                 ].join(" | ")
             )
             .join("\n\n");
-
-        window.location.href =
-            `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
 
     const inputClass =
@@ -376,12 +402,8 @@ export default function SalesOrdersPage() {
                             S
                         </div>
                         <div>
-                            <p className="text-lg font-bold tracking-wide">
-                                SUDHA CHEMICALS
-                            </p>
-                            <p className="text-xs text-slate-400">
-                                Sales Order Management
-                            </p>
+                            <p className="text-lg font-bold tracking-wide">SUDHA CHEMICALS</p>
+                            <p className="text-xs text-slate-400">Sales Order Management</p>
                         </div>
                     </div>
 
@@ -406,9 +428,7 @@ export default function SalesOrdersPage() {
                     <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-700">
                         Order Administration
                     </p>
-                    <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-                        Sales Orders
-                    </h1>
+                    <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Sales Orders</h1>
                     <p className="mt-2 text-sm text-slate-500">
                         Search, review, track and share your recorded customer orders.
                     </p>
@@ -426,7 +446,6 @@ export default function SalesOrdersPage() {
                                 ? "border-amber-200 bg-amber-50 text-amber-900"
                                 : "border-emerald-200 bg-emerald-50 text-emerald-900";
                     const icon = isError ? "⚠" : isDelete ? "🗑" : isEdit ? "✎" : "✓";
-
                     return (
                         <div
                             role={isError ? "alert" : "status"}
@@ -459,27 +478,18 @@ export default function SalesOrdersPage() {
 
                 <div className="mb-6 grid gap-4 sm:grid-cols-2">
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <p className="text-sm font-medium text-slate-500">
-                            Total Sales Orders
-                        </p>
+                        <p className="text-sm font-medium text-slate-500">Total Sales Orders</p>
                         <p className="mt-2 text-3xl font-black text-slate-950">
                             {ready ? orders.length : "—"}
                         </p>
-                        <p className="mt-2 text-xs text-slate-400">
-                            Recorded in this browser
-                        </p>
+                        <p className="mt-2 text-xs text-slate-400">Recorded in this browser</p>
                     </div>
-
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <p className="text-sm font-medium text-slate-500">
-                            Matching Results
-                        </p>
+                        <p className="text-sm font-medium text-slate-500">Matching Results</p>
                         <p className="mt-2 text-3xl font-black text-blue-700">
                             {ready ? filteredOrders.length : "—"}
                         </p>
-                        <p className="mt-2 text-xs text-slate-400">
-                            Based on your search
-                        </p>
+                        <p className="mt-2 text-xs text-slate-400">Based on your search</p>
                     </div>
                 </div>
 
@@ -491,7 +501,6 @@ export default function SalesOrdersPage() {
                                 Review saved orders and export records for sharing.
                             </p>
                         </div>
-
                         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                             <input
                                 aria-label="Search sales orders"
@@ -500,7 +509,6 @@ export default function SalesOrdersPage() {
                                 placeholder="Search customer, company, manufacturer, item..."
                                 className={inputClass + " sm:min-w-64"}
                             />
-
                             <button
                                 onClick={() => downloadCSV(filteredOrders)}
                                 disabled={filteredOrders.length === 0}
@@ -508,7 +516,6 @@ export default function SalesOrdersPage() {
                             >
                                 Export CSV ↓
                             </button>
-
                             <button
                                 onClick={shareFilteredOrders}
                                 disabled={filteredOrders.length === 0}
@@ -520,18 +527,14 @@ export default function SalesOrdersPage() {
                     </div>
 
                     {!ready ? (
-                        <div className="p-12 text-center text-sm text-slate-500">
-                            Loading sales orders...
-                        </div>
+                        <div className="p-12 text-center text-sm text-slate-500">Loading sales orders...</div>
                     ) : filteredOrders.length === 0 ? (
                         <div className="px-6 py-16 text-center">
                             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
                                 {orders.length === 0 ? "▤" : "⌕"}
                             </div>
                             <h3 className="mt-5 text-lg font-bold">
-                                {orders.length === 0
-                                    ? "No sales orders yet"
-                                    : "No matching orders"}
+                                {orders.length === 0 ? "No sales orders yet" : "No matching orders"}
                             </h3>
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
                                 {orders.length === 0
@@ -555,6 +558,7 @@ export default function SalesOrdersPage() {
                                         <th className="px-5 py-4 font-bold">Order</th>
                                         <th className="px-5 py-4 font-bold">Company</th>
                                         <th className="px-5 py-4 font-bold">Manufacturer / Trader</th>
+                                        <th className="px-5 py-4 font-bold">Destination</th>
                                         <th className="px-5 py-4 font-bold">Customer</th>
                                         <th className="px-5 py-4 font-bold">Item Name</th>
                                         <th className="px-5 py-4 font-bold">Quantity</th>
@@ -563,64 +567,47 @@ export default function SalesOrdersPage() {
                                         <th className="px-5 py-4 font-bold">GST Extra</th>
                                         <th className="px-5 py-4 font-bold">Payment Terms</th>
                                         <th className="px-5 py-4 font-bold">Filled By</th>
-                                        <th className="px-5 py-4 font-bold">IP Address</th>
                                         <th className="px-5 py-4 font-bold">Actions</th>
                                     </tr>
                                 </thead>
-
                                 <tbody className="divide-y divide-slate-100">
                                     {filteredOrders.map((order) => (
-                                        <tr
-                                            key={order.id || order.serialNo}
-                                            className="transition hover:bg-blue-50/40"
-                                        >
+                                        <tr key={order.id || order.serialNo} className="transition hover:bg-blue-50/40">
                                             <td className="px-5 py-4">
                                                 <p className="font-bold text-blue-700">
-                                                    {order.orderNumber ||
-                                                        `SC-2026-${String(order.serialNo).padStart(4, "0")}`}
+                                                    {order.orderNumber || `SC-2026-${String(order.serialNo).padStart(4, "0")}`}
                                                 </p>
-                                                <p className="text-xs text-slate-400">
-                                                    {order.orderDate || "-"}
-                                                </p>
+                                                <p className="text-xs text-slate-400">{order.orderDate || "-"}</p>
                                             </td>
-
                                             <td className="px-5 py-4">
                                                 <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-800">
                                                     {order.companyName || "—"}
                                                 </span>
                                             </td>
-
                                             <td className="px-5 py-4">
                                                 <span className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-800">
                                                     {order.manufacturerName || "—"}
                                                 </span>
                                             </td>
-
                                             <td className="px-5 py-4">
-                                                <p className="font-semibold text-slate-800">
-                                                    {order.customerName || "—"}
-                                                </p>
-                                                <p className="mt-1 text-xs text-slate-400">
-                                                    {order.customerNumber || "—"}
-                                                </p>
+                                                {order.place ? (
+                                                    <span className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800">
+                                                        📍 {order.place}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400">—</span>
+                                                )}
                                             </td>
-
-                                            <td className="px-5 py-4 font-medium text-slate-700">
-                                                {order.itemName || "—"}
+                                            <td className="px-5 py-4">
+                                                <p className="font-semibold text-slate-800">{order.customerName || "—"}</p>
+                                                <p className="mt-1 text-xs text-slate-400">{order.customerNumber || "—"}</p>
                                             </td>
-
-                                            <td className="px-5 py-4 font-semibold tabular-nums">
-                                                {getQuantity(order)}
-                                            </td>
-
-                                            <td className="px-5 py-4 font-semibold tabular-nums">
-                                                {money(order.rate)}
-                                            </td>
-
+                                            <td className="px-5 py-4 font-medium text-slate-700">{order.itemName || "—"}</td>
+                                            <td className="px-5 py-4 font-semibold tabular-nums">{getQuantity(order)}</td>
+                                            <td className="px-5 py-4 font-semibold tabular-nums">{money(order.rate)}</td>
                                             <td className="px-5 py-4 font-semibold tabular-nums text-slate-700">
                                                 {money(order.freight ?? order.frieght)}
                                             </td>
-
                                             <td className="px-5 py-4">
                                                 <span
                                                     className={`inline-flex whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${order.gstExtra === true
@@ -633,19 +620,8 @@ export default function SalesOrdersPage() {
                                                     {getGstExtra(order)}
                                                 </span>
                                             </td>
-
-                                            <td className="px-5 py-4 text-slate-600">
-                                                {order.paymentTerms || "—"}
-                                            </td>
-
-                                            <td className="px-5 py-4 text-slate-700">
-                                                {order.filledBy || "—"}
-                                            </td>
-
-                                            <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                                                {order.ipAddress || "Unavailable"}
-                                            </td>
-
+                                            <td className="px-5 py-4 text-slate-600">{order.paymentTerms || "—"}</td>
+                                            <td className="px-5 py-4 text-slate-700">{order.filledBy || "—"}</td>
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <button
@@ -654,28 +630,24 @@ export default function SalesOrdersPage() {
                                                     >
                                                         View
                                                     </button>
-
                                                     <button
                                                         onClick={() => startEdit(order)}
                                                         className="rounded-lg border border-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
                                                     >
                                                         Edit
                                                     </button>
-
                                                     <button
                                                         onClick={() => printOrder(order)}
                                                         className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
                                                     >
                                                         Print
                                                     </button>
-
                                                     <button
                                                         onClick={() => shareOrder(order)}
                                                         className="rounded-lg border border-blue-100 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
                                                     >
                                                         Email
                                                     </button>
-
                                                     <button
                                                         onClick={() => deleteOrder(order)}
                                                         className="rounded-lg border border-red-100 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
@@ -703,22 +675,142 @@ export default function SalesOrdersPage() {
                 </p>
             </div>
 
+            {/* ============ EDIT MODAL ============ */}
             {editingOrder && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-                    <section role="dialog" aria-modal="true" aria-labelledby="edit-order-title" className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="edit-order-title"
+                        className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+                    >
                         <div className="flex items-center justify-between gap-3 bg-slate-950 px-6 py-5 text-white">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">Update Order Record</p>
-                                <h2 id="edit-order-title" className="mt-1 text-xl font-black">Edit Sales Order #{editingOrder.serialNo}</h2>
+                                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300">
+                                    Update Order Record
+                                </p>
+                                <h2 id="edit-order-title" className="mt-1 text-xl font-black">
+                                    Edit Sales Order #{editingOrder.serialNo}
+                                </h2>
                             </div>
-                            <button type="button" onClick={() => setEditingOrder(null)} className="rounded-xl border border-slate-700 px-3 py-2 hover:bg-slate-800">✕</button>
+                            <button
+                                type="button"
+                                onClick={() => setEditingOrder(null)}
+                                className="rounded-xl border border-slate-700 px-3 py-2 hover:bg-slate-800"
+                            >
+                                ✕
+                            </button>
                         </div>
+
                         <form onSubmit={saveEditedOrder} className="p-6">
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {/* ============ COMPANY — DROPDOWN ============ */}
+                                <label className="block">
+                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                        Company Name
+                                    </span>
+                                    <select
+                                        value={editForm.companyName || ""}
+                                        onChange={(event) =>
+                                            setEditForm((current) => ({
+                                                ...current,
+                                                companyName: event.target.value,
+                                            }))
+                                        }
+                                        className={inputClass}
+                                    >
+                                        <option value="">Select company</option>
+                                        {companies.map((company) => (
+                                            <option key={company} value={company}>
+                                                {company}
+                                            </option>
+                                        ))}
+                                        {/* legacy value */}
+                                        {editForm.companyName &&
+                                            !companies.includes(editForm.companyName) && (
+                                                <option value={editForm.companyName}>
+                                                    {editForm.companyName} (legacy)
+                                                </option>
+                                            )}
+                                    </select>
+                                </label>
+
+                                {/* ============ MANUFACTURER — DROPDOWN ============ */}
+                                <label className="block">
+                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                        Manufacturer / Trader
+                                    </span>
+                                    <select
+                                        value={editForm.manufacturerName || ""}
+                                        onChange={(event) =>
+                                            setEditForm((current) => ({
+                                                ...current,
+                                                manufacturerName: event.target.value,
+                                                place: "", // ✅ manufacturer change → place reset
+                                            }))
+                                        }
+                                        className={inputClass}
+                                    >
+                                        <option value="">Select manufacturer / trader</option>
+                                        {manufacturerOptions.map((manufacturer) => (
+                                            <option key={manufacturer} value={manufacturer}>
+                                                {manufacturer}
+                                            </option>
+                                        ))}
+                                        {/* legacy value */}
+                                        {editForm.manufacturerName &&
+                                            !manufacturerOptions.includes(editForm.manufacturerName) && (
+                                                <option value={editForm.manufacturerName}>
+                                                    {editForm.manufacturerName} (legacy)
+                                                </option>
+                                            )}
+                                    </select>
+                                </label>
+
+                                {/* ============ DESTINATION — DROPDOWN (conditional) ============ */}
+                                {showEditPlaceField ? (
+                                    <label className="block">
+                                        <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                            Destination / Place
+                                        </span>
+                                        <select
+                                            value={editForm.place || ""}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({
+                                                    ...current,
+                                                    place: event.target.value,
+                                                }))
+                                            }
+                                            className={inputClass}
+                                        >
+                                            <option value="">Select destination</option>
+                                            {editFormDestinations.map((dest) => (
+                                                <option key={dest} value={dest}>
+                                                    📍 {dest}
+                                                </option>
+                                            ))}
+                                            {/* legacy value */}
+                                            {editForm.place &&
+                                                !editFormDestinations.includes(editForm.place) && (
+                                                    <option value={editForm.place}>
+                                                        {editForm.place} (legacy)
+                                                    </option>
+                                                )}
+                                        </select>
+                                    </label>
+                                ) : (
+                                    <label className="block">
+                                        <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                            Destination / Place
+                                        </span>
+                                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                                            Is manufacturer ke liye koi preset destination nahi hai.
+                                        </div>
+                                    </label>
+                                )}
+
+                                {/* ============ BAQI TEXT FIELDS ============ */}
                                 {[
-                                    ["companyName", "Company Name"],
-                                    ["manufacturerName", "Manufacturer / Trader"],
-                                    ["place", "Place"],
                                     ["customerName", "Customer Name"],
                                     ["customerAddress", "Customer Address"],
                                     ["customerNumber", "Customer Number"],
@@ -735,42 +827,104 @@ export default function SalesOrdersPage() {
                                     ["otherPersonName", "Other Person Name"],
                                 ].map(([key, label]) => (
                                     <label key={key} className="block">
-                                        <span className="mb-1.5 block text-xs font-bold text-slate-600">{label}</span>
+                                        <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                            {label}
+                                        </span>
                                         <input
                                             value={editForm[key] ?? ""}
-                                            onChange={(event) => setEditForm((current) => ({ ...current, [key]: event.target.value }))}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({
+                                                    ...current,
+                                                    [key]: event.target.value,
+                                                }))
+                                            }
                                             type={key === "rate" || key === "freight" ? "number" : "text"}
                                             step={key === "rate" || key === "freight" ? "0.01" : undefined}
                                             className={inputClass}
                                         />
                                     </label>
                                 ))}
+
+                                {/* Quantity */}
                                 <label className="block">
-                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">Quantity</span>
+                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                        Quantity
+                                    </span>
                                     <div className="flex gap-2">
-                                        <input required value={editForm.qty ?? ""} onChange={(event) => setEditForm((current) => ({ ...current, qty: event.target.value }))} className={inputClass} />
-                                        <select value={editForm.qtyUnit || "KG"} onChange={(event) => setEditForm((current) => ({ ...current, qtyUnit: event.target.value }))} className={inputClass + " max-w-28"}>
-                                            {[["L", "L"], ["KG", "KG"], ["MT", "MT"], ["BAG", "BAG"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                        <input
+                                            required
+                                            value={editForm.qty ?? ""}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({
+                                                    ...current,
+                                                    qty: event.target.value,
+                                                }))
+                                            }
+                                            className={inputClass}
+                                        />
+                                        <select
+                                            value={editForm.qtyUnit || "KG"}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({
+                                                    ...current,
+                                                    qtyUnit: event.target.value,
+                                                }))
+                                            }
+                                            className={inputClass + " max-w-28"}
+                                        >
+                                            {[["L", "L"], ["KG", "KG"], ["MT", "MT"], ["BAG", "BAG"]].map(
+                                                ([value, label]) => (
+                                                    <option key={value} value={value}>
+                                                        {label}
+                                                    </option>
+                                                )
+                                            )}
                                         </select>
                                     </div>
                                 </label>
+
+                                {/* GST Setting */}
                                 <label className="block">
-                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">GST Setting</span>
-                                    <select value={String(editForm.gstExtra !== false)} onChange={(event) => setEditForm((current) => ({ ...current, gstExtra: event.target.value === "true" }))} className={inputClass}>
+                                    <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                                        GST Setting
+                                    </span>
+                                    <select
+                                        value={String(editForm.gstExtra !== false)}
+                                        onChange={(event) =>
+                                            setEditForm((current) => ({
+                                                ...current,
+                                                gstExtra: event.target.value === "true",
+                                            }))
+                                        }
+                                        className={inputClass}
+                                    >
                                         <option value="true">Rate + GST Extra</option>
                                         <option value="false">No GST Extra</option>
                                     </select>
                                 </label>
                             </div>
+
                             <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
-                                <button type="button" onClick={() => setEditingOrder(null)} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
-                                <button type="submit" className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">Save Changes</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingOrder(null)}
+                                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+                                >
+                                    Save Changes
+                                </button>
                             </div>
                         </form>
                     </section>
                 </div>
             )}
 
+            {/* ============ VIEW MODAL ============ */}
             {selectedOrder && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -792,11 +946,9 @@ export default function SalesOrdersPage() {
                                     Sales Order Details
                                 </p>
                                 <h2 id="order-detail-title" className="mt-1 text-xl font-black">
-                                    {selectedOrder.orderNumber ||
-                                        `Order #${selectedOrder.serialNo}`}
+                                    {selectedOrder.orderNumber || `Order #${selectedOrder.serialNo}`}
                                 </h2>
                             </div>
-
                             <button
                                 onClick={() => setSelectedOrder(null)}
                                 aria-label="Close order details"
@@ -811,7 +963,7 @@ export default function SalesOrdersPage() {
                                 ["Company Name", selectedOrder.companyName],
                                 ["Manufacturer / Trader", selectedOrder.manufacturerName],
                                 ["Order Date", selectedOrder.orderDate],
-                                ["Place", selectedOrder.place],
+                                ["Place / Destination", selectedOrder.place],
                                 ["Quantity", getQuantity(selectedOrder)],
                                 ["Form Filled By", selectedOrder.filledBy],
                                 ["IP Address", selectedOrder.ipAddress],
@@ -830,19 +982,10 @@ export default function SalesOrdersPage() {
                                 ["Broker Email", selectedOrder.brokerEmailId],
                                 ["Other Person Name", selectedOrder.otherPersonName],
                             ].map(([label, value]) => (
-                                <div
-                                    key={label}
-                                    className="rounded-xl border border-slate-100 bg-slate-50 p-4"
-                                >
-                                    <p className="text-xs font-semibold text-slate-500">
-                                        {label}
-                                    </p>
+                                <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                                    <p className="text-xs font-semibold text-slate-500">{label}</p>
                                     <p className="mt-1 break-words text-sm font-bold text-slate-800">
-                                        {value === null ||
-                                            value === undefined ||
-                                            value === ""
-                                            ? "—"
-                                            : value}
+                                        {value === null || value === undefined || value === "" ? "—" : value}
                                     </p>
                                 </div>
                             ))}
@@ -855,21 +998,18 @@ export default function SalesOrdersPage() {
                             >
                                 Edit Order
                             </button>
-
                             <button
                                 onClick={() => printOrder(selectedOrder)}
                                 className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
                             >
                                 Print Order
                             </button>
-
                             <button
                                 onClick={() => shareOrder(selectedOrder)}
                                 className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800"
                             >
                                 Share by Email
                             </button>
-
                             <button
                                 onClick={() => setSelectedOrder(null)}
                                 className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
