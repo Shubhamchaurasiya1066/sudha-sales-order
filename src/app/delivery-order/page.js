@@ -61,7 +61,6 @@ export default function DeliveryOrderPage() {
     setIsDownloading(true);
 
     try {
-      // Dynamic import to prevent Next.js SSR error
       const html2pdf = (await import("html2pdf.js")).default;
 
       const opt = {
@@ -72,14 +71,14 @@ export default function DeliveryOrderPage() {
           scale: 2, 
           useCORS: true,
           scrollY: 0,
-          windowWidth: 794, // Exact A4 width in pixels
-          windowHeight: 1123 // Exact A4 height in pixels
+          windowWidth: 794,
+          windowHeight: 1123,
+          letterRendering: true, 
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: 'avoid-all' }
       };
 
-      // Clone banate hain taaki preview ka scale(0.65) PDF ko affect na kare
       const clone = element.cloneNode(true);
       clone.style.transform = "none"; 
       clone.style.width = "210mm";
@@ -237,11 +236,10 @@ export default function DeliveryOrderPage() {
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              gap: 6px;
               text-transform: capitalize;
-              letter-spacing: 0.5px;
+              letter-spacing: normal;
+              font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif;
             }
-            .footer-row { display: flex; align-items: center; gap: 8px; }
             
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -326,9 +324,9 @@ export default function DeliveryOrderPage() {
 
               <!-- FOOTER -->
               <div class="footer">
-                <div class="footer-row"><span>✉️</span> <span>Email: [sudhacorechemical@gmail.com]</span></div>
-                <div class="footer-row"><span>📞</span> <span>Phone: [9109140922]</span></div>
-                <div class="footer-row"><span>🏢</span> <span>Address: [Di Dana Oli, Nai Sadak, Gwalior]</span></div>
+                <div style="margin-bottom: 6px;">✉️Email: sudhacorechemical@gmail.com</div>
+                <div style="margin-bottom: 6px;">📞Phone: 9109140922</div>
+                <div>🏢Address: Di Dana Oli, Nai Sadak, Gwalior</div>
               </div>
             </div>
           </div>
@@ -373,7 +371,7 @@ export default function DeliveryOrderPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* ✅ FORM - Sirf 6 Fields */}
+          {/* ✅ FORM */}
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-6 h-fit">
             <h2 className="mb-5 flex items-center gap-2 text-lg font-black">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">📝</span>
@@ -381,7 +379,6 @@ export default function DeliveryOrderPage() {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelClass} htmlFor="date">Date <span className="text-red-500">*</span></label>
@@ -447,7 +444,7 @@ export default function DeliveryOrderPage() {
             </form>
           </section>
 
-          {/* ✅ LIVE PREVIEW - Exact PDF Layout */}
+          {/* ✅ LIVE PREVIEW */}
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-black">
@@ -539,10 +536,11 @@ export default function DeliveryOrderPage() {
                       </div>
                     </div>
 
-                    <div style={{ marginTop: "auto", background: "#3ba59e", color: "#000", padding: "12px 20px", fontSize: "13px", fontWeight: "bold", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px", textTransform: "capitalize", letterSpacing: "0.5px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span>✉️</span> <span>Email: [sudhacorechemical@gmail.com]</span></div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span>📞</span> <span>Phone: [9109140922]</span></div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><span>🏢</span> <span>Address: [Di Dana Oli, Nai Sadak, Gwalior]</span></div>
+                    {/* FOOTER - Emoji + No Space Fix */}
+                    <div style={{ marginTop: "auto", background: "#3ba59e", color: "#000", padding: "12px 20px", fontSize: "13px", fontWeight: "bold", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textTransform: "capitalize", letterSpacing: "normal", fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif' }}>
+                      <div style={{ marginBottom: "6px" }}>✉️Email: sudhacorechemical@gmail.com</div>
+                      <div style={{ marginBottom: "6px" }}>📞Phone: 9109140922</div>
+                      <div>🏢Address: Di Dana Oli, Nai Sadak, Gwalior</div>
                     </div>
 
                   </div>
