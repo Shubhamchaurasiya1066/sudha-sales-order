@@ -5,8 +5,6 @@ import Link from "next/link";
 
 const PURCHASE_KEY = "sudha_purchase_orders";
 
-const STATUS_OPTIONS = ["Pending", "Approved", "Processing", "Completed", "Cancelled"];
-
 function formatCurrency(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "₹0.00";
@@ -23,23 +21,12 @@ function formatQty(value) {
   return num.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
-function statusClass(status) {
-  switch (status) {
-    case "Approved": return "bg-blue-50 text-blue-700 ring-blue-600/20";
-    case "Processing": return "bg-violet-50 text-violet-700 ring-violet-600/20";
-    case "Completed": return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
-    case "Cancelled": return "bg-red-50 text-red-700 ring-red-600/20";
-    default: return "bg-amber-50 text-amber-700 ring-amber-600/20";
-  }
-}
-
 export default function CompanyPurchasesPage() {
   const [orders, setOrders] = useState([]);
   const [ready, setReady] = useState(false);
 
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openCompanies, setOpenCompanies] = useState({});
@@ -76,19 +63,18 @@ export default function CompanyPurchasesPage() {
         String(o.itemName || "").toLowerCase().includes(q) ||
         String(o.purchaseOrderNumber || "").toLowerCase().includes(q) ||
         String(o.place || "").toLowerCase().includes(q) ||
-        String(o.transportName || "").toLowerCase().includes(q) ||
-        String(o.brokerName || "").toLowerCase().includes(q);
+        String(o.brokerName || "").toLowerCase().includes(q) ||
+        String(o.packaging || "").toLowerCase().includes(q);
 
       const matchCompany = !companyFilter || o.manufacturerName === companyFilter;
-      const matchStatus = !statusFilter || (o.status || "Pending") === statusFilter;
 
       const orderDate = o.createdAt ? new Date(o.createdAt) : null;
       const matchFrom = !from || (orderDate && orderDate >= from);
       const matchTo = !to || (orderDate && orderDate <= to);
 
-      return matchSearch && matchCompany && matchStatus && matchFrom && matchTo;
+      return matchSearch && matchCompany && matchFrom && matchTo;
     });
-  }, [orders, search, companyFilter, statusFilter, fromDate, toDate]);
+  }, [orders, search, companyFilter, fromDate, toDate]);
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -149,12 +135,12 @@ export default function CompanyPurchasesPage() {
     setOpenCompanies(n);
   }
   function resetFilters() {
-    setSearch(""); setCompanyFilter(""); setStatusFilter("");
+    setSearch(""); setCompanyFilter("");
     setFromDate(""); setToDate("");
   }
 
   function exportCSV() {
-    const headers = ["Company", "PO Number", "Order Date", "Item", "Qty", "Unit", "Rate", "Total", "Freight", "Status", "Place", "Transport", "Broker"];
+    const headers = ["Company", "PO Number", "Order Date", "Item", "Packaging", "Qty", "Unit", "Rate", "Total", "Place", "Broker"];
     const rows = [];
     grouped.forEach((g) => {
       g.items.forEach((o) => {
@@ -162,10 +148,9 @@ export default function CompanyPurchasesPage() {
         const rate = Number(o.billingPrice) || Number(o.actualPrice) || 0;
         rows.push([
           g.company, o.purchaseOrderNumber || "", o.orderDate || "",
-          o.itemName || "", qty, o.qtyUnit || "",
+          o.itemName || "", o.packaging || "", qty, o.qtyUnit || "",
           rate.toFixed(2), (qty * rate).toFixed(2),
-          (Number(o.freight) || 0).toFixed(2), o.status || "Pending",
-          o.place || "", o.transportName || "", o.brokerName || "",
+          o.place || "", o.brokerName || "",
         ]);
       });
     });
@@ -241,7 +226,8 @@ export default function CompanyPurchasesPage() {
         </div>
 
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          {/* ✅ Status filter hata diya, ab grid lg:grid-cols-3 hai */}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 Search company, product, PO, place, broker..."
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10" />
@@ -249,11 +235,6 @@ export default function CompanyPurchasesPage() {
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500">
               <option value="">All Companies</option>
               {companyList.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500">
-              <option value="">All Statuses</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <div className="flex gap-2">
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
@@ -318,11 +299,11 @@ export default function CompanyPurchasesPage() {
                         <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                           <tr>
                             <th className="px-4 py-3 font-bold">PO No. / Date</th>
-                            <th className="px-4 py-3 font-bold">Product</th>
+                            <th className="px-4 py-3 font-bold">Product / Packaging</th>
                             <th className="px-4 py-3 text-right font-bold">Qty</th>
                             <th className="px-4 py-3 text-right font-bold">Rate</th>
                             <th className="px-4 py-3 text-right font-bold">Total</th>
-                            <th className="px-4 py-3 font-bold">Status</th>
+                            {/* ✅ Status column hata diya */}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -337,18 +318,16 @@ export default function CompanyPurchasesPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <p className="font-semibold text-slate-800">{o.itemName || "—"}</p>
-                                  {o.place && <p className="text-xs text-slate-400">📍 {o.place}</p>}
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {o.packaging && <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">{o.packaging}</span>}
+                                    {o.place && <span className="text-[10px] text-slate-400">📍 {o.place}</span>}
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-right tabular-nums">
                                   {formatQty(qty)} <span className="text-xs text-slate-400">{o.qtyUnit || ""}</span>
                                 </td>
                                 <td className="px-4 py-3 text-right tabular-nums text-slate-600">{formatCurrency(rate)}</td>
                                 <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-800">{formatCurrency(qty * rate)}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${statusClass(o.status || "Pending")}`}>
-                                    {o.status || "Pending"}
-                                  </span>
-                                </td>
                               </tr>
                             );
                           })}
@@ -359,7 +338,6 @@ export default function CompanyPurchasesPage() {
                             <td className="px-4 py-3 text-right tabular-nums text-amber-700">{qtyDisplay || "—"}</td>
                             <td className="px-4 py-3"></td>
                             <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{formatCurrency(g.totalValue)}</td>
-                            <td className="px-4 py-3"></td>
                           </tr>
                         </tfoot>
                       </table>

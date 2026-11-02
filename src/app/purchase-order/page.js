@@ -5,37 +5,55 @@ import Link from "next/link";
 
 const STORAGE_KEY = "sudha_purchase_orders";
 const units = ["L", "KG", "MT", "BAG"];
+const packagingOptions = [
+    "50kg can",
+    "30kg can",
+    "Tanker",
+    "210kg drum",
+    "25kg bag",
+    "50kg bag",
+];
 const chemicalOptions = [
     "Sulphuric Acid (98%)",
     "Hydrochloric Acid (30-33%)",
+    "Hydrogen Peroxide (50%)",
+    "Hydrogen Peroxide (60%)",
     "Nitric Acid",
     "Phosphoric Acid",
     "Acetic Acid",
+    "Weak Nitric Acid",
+    "Methylene Dichloride (MDC)",
+    "Poly Alluminium Chloride (PVC)",
+    "Chloroform",
     "Caustic Soda Lye",
     "Soda Ash",
+    "Ethyl Acetate",
     "Cuastic Soda Flakes",
     "Citric Acid",
     "Oleum(23%)",
 ];
 const manufacturerOptions = [
-    "AHANA TRADING & LOGISTIC PRIVATE LIMITADE",
-    "BODAL CHEMICALS LTD.-UNIT-VII",
-    "CHAMBAL FERTILISERS AND CHEMICALS LTD.",
-    "GUJRAT ALKALIES AND CHEMICALS LIMITED",
+    "DCM Shriram Industries Ltd.",
+    "Grassim Industries Limited",
+    "Meghmani Organics Limited",
+    "GUJRAT ALKALIES AND CHEMICALS LIMITED (GACL)",
     "KUTCH COPPER LIMITED",
-    "LEO CHEMO PLAST PRIVATE LIMITED",
-    "ORIENT PAPER MILLS",
+    "Atul-Indian Chemical Company",
+    "Swastik Plasticizers",
     "Paradeep Phosphates Limited",
-    "PATEL ENTERPRISES",
-    "R R INNOVATIVE PRIVATE LIMITED",
-    "SHARDAM CHEMICAL",
-    "SHRIRAM ALKALI & CHEMICALS(H2O2)",
-    "SHRIRAM VINYL & CHEMICAL INDUSTRIES",
+    "Lanxess-Energizing Chemistry",
+    "Khaitan Chemicals and Fertilizers Limited",
+    "Shreas Industries Limited",
+    "TGV-SRAAC Limited Sree Rayalaseema Alkalies and Allied Chemicals Limited",
+    "The Andhra Sugars Ltd.",
+    "Payal Polyplast Pvt. Ltd.",
+    "Accord Chemical Corportion",
 ];
 
 const initialForm = {
     manufacturerName: "",
     itemName: "",
+    packaging: "",
     qty: "",
     qtyUnit: "KG",
     actualPrice: "",
@@ -48,9 +66,7 @@ const initialForm = {
     brokerName: "",
     brokerContactNumber: "",
     brokerEmail: "",
-    transportName: "",
-    freight: "",
-    status: "Pending",
+    // ✅ freight aur transportName hata diya gaya hai
 };
 
 const inputClass =
@@ -89,6 +105,10 @@ export default function PurchaseOrderPage() {
 
         if (!form.itemName.trim()) {
             next.itemName = "Item name is required.";
+        }
+
+        if (!form.packaging) {
+            next.packaging = "Please select packaging type.";
         }
 
         if (
@@ -138,10 +158,6 @@ export default function PurchaseOrderPage() {
             next.place = "Place is required.";
         }
 
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.supplierEmail.trim())) {
-            next.supplierEmail = "Enter a valid supplier email.";
-        }
-
         if (
             form.brokerContactNumber &&
             !/^[0-9]{10}$/.test(form.brokerContactNumber.trim())
@@ -156,25 +172,7 @@ export default function PurchaseOrderPage() {
             next.brokerEmail = "Enter a valid broker email.";
         }
 
-        if (!form.transportName.trim()) {
-            next.transportName = "Transport name is required.";
-        }
-
-        if (
-            form.freight === "" ||
-            !Number.isFinite(Number(form.freight)) ||
-            Number(form.freight) < 0
-        ) {
-            next.freight = "Enter a valid freight amount.";
-        }
-
-        if (
-            !["Pending", "Approved", "Processing", "Completed", "Cancelled"].includes(
-                form.status
-            )
-        ) {
-            next.status = "Please select a valid order status.";
-        }
+        // ✅ Freight aur Transport ki validation hata di gayi hai
 
         return next;
     }
@@ -221,12 +219,13 @@ export default function PurchaseOrderPage() {
 
             const newOrder = {
                 ...form,
-                status: form.status || "Pending",
                 qty: Number(form.qty),
                 actualPrice: Number(form.actualPrice),
                 discount: Number(form.discount),
                 billingPrice: Number(form.billingPrice),
-                freight: Number(form.freight),
+                // ✅ Default values set ki hain taaki purane code me error na aaye
+                freight: 0,
+                transportName: "",
                 serialNo: nextSerial,
                 purchaseOrderNumber,
                 orderDate: now.toLocaleString("en-IN"),
@@ -354,8 +353,7 @@ export default function PurchaseOrderPage() {
                     </h1>
 
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                        Record supplier purchases, quantity, discounts, transport
-                        and freight in one place.
+                        Record supplier purchases, quantity, discounts in one place.
                     </p>
                 </div>
 
@@ -488,6 +486,17 @@ export default function PurchaseOrderPage() {
                                     ],
                                 })}
 
+                                {field("packaging", "Packaging Type", "Select packaging type", {
+                                    required: true,
+                                    select: [
+                                        { value: "", label: "Select packaging type" },
+                                        ...packagingOptions.map((pack) => ({
+                                            value: pack,
+                                            label: pack,
+                                        })),
+                                    ],
+                                })}
+
                                 <div>
                                     <label className={labelClass} htmlFor="qty">
                                         QTY <span className="text-red-500">*</span>
@@ -540,7 +549,7 @@ export default function PurchaseOrderPage() {
                                     "supplierEmail",
                                     "Email ID (Supplier)",
                                     "supplier@example.com",
-                                    { type: "email", required: true }
+                                    { type: "email" }
                                 )}
 
                                 {field("exFor", "Ex/For", "Select Ex/For", {
@@ -561,7 +570,7 @@ export default function PurchaseOrderPage() {
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
                                     02
                                 </span>
-                                Pricing, Discount & Status
+                                Pricing & Discount
                             </h3>
 
                             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -617,38 +626,13 @@ export default function PurchaseOrderPage() {
                                     { type: "number", required: true }
                                 )}
 
-                                {field(
-                                    "freight",
-                                    "Freight (₹)",
-                                    "Enter freight amount",
-                                    { type: "number", required: true }
-                                )}
-
-                                {field(
-                                    "transportName",
-                                    "Transport Name",
-                                    "Enter transport company / name",
-                                    { required: true }
-                                )}
-
-                                {field("status", "Order Status", "", {
-                                    required: true,
-                                    select: [
-                                        { value: "Pending", label: "Pending" },
-                                        { value: "Approved", label: "Approved" },
-                                        { value: "Processing", label: "Processing" },
-                                        { value: "Completed", label: "Completed" },
-                                        { value: "Cancelled", label: "Cancelled" },
-                                    ],
-                                })}
+                                {/* ✅ Freight aur Transport Name ki fields yahan se hata di gayi hain */}
                             </div>
 
                             <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
                                 Discount and Billing Price are separate fields. Billing
                                 Price must be entered manually and will not change
-                                automatically when you update the discount. New purchase
-                                orders start with Pending status unless you select another
-                                status.
+                                automatically when you update the discount.
                             </p>
                         </section>
 

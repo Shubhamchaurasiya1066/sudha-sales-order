@@ -34,7 +34,6 @@ export default function InventoryPage() {
   });
   const [ready, setReady] = useState(false);
   const [search, setSearch] = useState("");
-  const [includePending, setIncludePending] = useState(false);
 
   useEffect(() => {
     try {
@@ -64,12 +63,6 @@ export default function InventoryPage() {
       // Process Purchases
       (Array.isArray(purchases) ? purchases : []).forEach((order) => {
         if (!order.itemName) return;
-        if (order.status === "Cancelled") return;
-
-        // Agar toggle off hai, to sirf Completed count honge (Stock Ledger ke hisaab se)
-        const shouldCount = includePending || order.status === "Completed";
-        if (!shouldCount) return;
-
         const item = ensureItem(order.itemName, order.qtyUnit);
         const qty = Number(order.qty) || 0;
         const price = Number(order.billingPrice) || Number(order.actualPrice) || 0;
@@ -97,7 +90,10 @@ export default function InventoryPage() {
         const avgSaleRate = item.saleQty > 0 ? item.saleValue / item.saleQty : 0;
         const remainingQty = item.purchaseQty - item.saleQty;
 
-        // Profit = Sale Revenue - Cost of Goods Sold
+        // ✅ Remaining Average Cost calculation
+        const remainingPurchaseValue = item.purchaseValue - (item.saleQty * avgPurchaseRate);
+        const remainingAverageCost = remainingQty > 0 ? remainingPurchaseValue / remainingQty : 0;
+
         const costOfGoodsSold = item.saleQty * avgPurchaseRate;
         const profit = item.saleValue - costOfGoodsSold;
 
@@ -106,6 +102,7 @@ export default function InventoryPage() {
           avgPurchaseRate,
           avgSaleRate,
           remainingQty,
+          remainingAverageCost,
           profit,
         };
       });
@@ -129,7 +126,7 @@ export default function InventoryPage() {
     } finally {
       setReady(true);
     }
-  }, [includePending]);
+  }, []);
 
   const filtered = items.filter((item) => {
     const q = search.trim().toLowerCase();
@@ -157,11 +154,11 @@ export default function InventoryPage() {
             <Link href="/company-sales" className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-500">
               🏢 Company Sales
             </Link>
-            <Link
-              href="/sheet"
-              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-500"
-            >
+            <Link href="/sheet" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-500">
               📊 View Sheet
+            </Link>
+            <Link href="/dispatch-order" className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-500">
+              🚚 Dispatch
             </Link>
             <Link href="/purchase-order" className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-violet-500">
               + Purchase
@@ -204,9 +201,9 @@ export default function InventoryPage() {
             <p className="mt-2 text-2xl font-black text-blue-700">{formatCurrency(totals.saleValue)}</p>
             <p className="mt-1 text-xs text-slate-400">{formatQty(totals.saleQty)} total qty</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Remaining Stock</p>
-            <p className="mt-2 text-2xl font-black text-amber-700">{formatQty(totals.remainingQty)}</p>
+          <div className={`rounded-2xl border p-5 shadow-sm ${totals.remainingQty >= 0 ? "border-slate-200 bg-white" : "border-red-200 bg-red-50"}`}>
+            <p className={`text-sm font-medium ${totals.remainingQty >= 0 ? "text-slate-500" : "text-red-700"}`}>Remaining Stock</p>
+            <p className={`mt-2 text-2xl font-black ${totals.remainingQty >= 0 ? "text-amber-700" : "text-red-700"}`}>{formatQty(totals.remainingQty)}</p>
             <p className="mt-1 text-xs text-slate-400">Across all items</p>
           </div>
           <div className={`rounded-2xl border p-5 shadow-sm ${totals.profit >= 0 ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
@@ -228,17 +225,6 @@ export default function InventoryPage() {
             placeholder="Search item name..."
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 sm:max-w-sm"
           />
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm cursor-pointer hover:bg-slate-50">
-            <input
-              type="checkbox"
-              checked={includePending}
-              onChange={(e) => setIncludePending(e.target.checked)}
-              className="h-4 w-4 rounded accent-emerald-600"
-            />
-            <span className="font-semibold text-slate-700">
-              Include Pending / Approved / Processing purchases
-            </span>
-          </label>
         </div>
 
         {/* Table */}
@@ -250,12 +236,12 @@ export default function InventoryPage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">📦</div>
               <h3 className="mt-5 text-lg font-bold">No inventory data</h3>
               <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                Create purchase orders (and mark them as Completed) and sales orders to see the summary here.
+                Create purchase orders and sales orders to see the summary here.
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px] text-left text-sm">
+              <table className="w-full min-w-[1300px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-4 font-bold">Item</th>
@@ -265,6 +251,7 @@ export default function InventoryPage() {
                     <th className="px-5 py-4 font-bold text-right">Sale Qty</th>
                     <th className="px-5 py-4 font-bold text-right">Avg Sale Rate</th>
                     <th className="px-5 py-4 font-bold text-right">Sale Value</th>
+                    <th className="px-5 py-4 font-bold text-right text-amber-700 bg-amber-50">Remaining Avg Rate</th>
                     <th className="px-5 py-4 font-bold text-right">Remaining</th>
                     <th className="px-5 py-4 font-bold text-right">Profit/Loss</th>
                   </tr>
@@ -293,6 +280,10 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-5 py-4 text-right tabular-nums font-semibold">
                         {formatCurrency(item.saleValue)}
+                      </td>
+                      {/* ✅ Naya Column Remaining Average Rate */}
+                      <td className="px-5 py-4 text-right tabular-nums font-bold text-amber-700 bg-amber-50">
+                        {item.remainingQty > 0 ? formatCurrency(item.remainingAverageCost) : "—"}
                       </td>
                       <td className={`px-5 py-4 text-right tabular-nums font-bold ${item.remainingQty > 0 ? "text-amber-700" : item.remainingQty < 0 ? "text-red-600" : "text-slate-500"}`}>
                         {formatQty(item.remainingQty)} {item.unit}

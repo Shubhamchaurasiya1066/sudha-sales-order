@@ -53,8 +53,7 @@ export default function SheetPage() {
         }
     }, []);
 
-    // ---------- Product-wise calculation (same as before) ----------
-    // Har product ke saath uske original purchase aur sale records bhi store karte hain
+    // ---------- Product-wise calculation ----------
     const products = useMemo(() => {
         const map = new Map();
 
@@ -79,11 +78,12 @@ export default function SheetPage() {
         // ----- Purchases -----
         purchases.forEach((p) => {
             if (!p.itemName) return;
-            if (p.status === "Cancelled") return;
 
             const item = ensure(p.itemName, p.qtyUnit);
             const qty = Number(p.qty) || 0;
-            const price = Number(p.actualPrice) || 0;
+            
+            // ✅ Billing Price use kar rahe hain, agar nahi hai to Actual Price
+            const price = Number(p.billingPrice) || Number(p.actualPrice) || 0;
 
             item.purchaseQty += qty;
             item.purchaseValue += qty * price;
@@ -98,7 +98,6 @@ export default function SheetPage() {
                 total: qty * price,
                 unit: p.qtyUnit || "KG",
                 date: p.orderDate || "",
-                status: p.status || "Pending",
                 place: p.place || "",
                 broker: p.brokerName || "",
                 freight: Number(p.freight) || 0,
@@ -108,7 +107,7 @@ export default function SheetPage() {
         // ----- Sales -----
         sales.forEach((s) => {
             if (!s.itemName) return;
-            if (s.status === "Cancelled") return;
+            if (s.status === "Cancelled") return; // Sale me status abhi bhi ho sakta hai
 
             const item = ensure(s.itemName, s.qtyUnit);
             const qty = Number(s.qty) || 0;
@@ -318,213 +317,213 @@ export default function SheetPage() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {products.map((item) => {
-    const isOpen = !!openProducts[item.key];
-    return (
-        <Fragment key={item.key}>
-            <tr className={`hover:bg-slate-50 ${isOpen ? "bg-emerald-50/40" : ""}`}>
-                <td className="border-r border-slate-100 px-4 py-3 font-bold text-slate-800">
-                    {item.itemName}
-                </td>
-                <td className="border-r-2 border-slate-300 px-4 py-3 text-xs font-semibold text-slate-500">
-                    {item.unit}
-                </td>
-                <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums">
-                    {formatNumber(item.purchaseQty)}
-                </td>
-                <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums text-violet-700">
-                    {formatCurrency(item.avgPurchaseRate)}
-                </td>
-                <td className="border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-semibold">
-                    {formatCurrency(item.purchaseValue)}
-                </td>
-                <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums">
-                    {formatNumber(item.saleQty)}
-                </td>
-                <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums text-blue-700">
-                    {formatCurrency(item.avgSaleRate)}
-                </td>
-                <td className="border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-semibold">
-                    {formatCurrency(item.saleValue)}
-                </td>
-                <td className={`border-r border-slate-100 px-4 py-3 text-right tabular-nums font-bold ${item.remainingQty > 0 ? "text-amber-700" : item.remainingQty < 0 ? "text-red-600" : "text-slate-500"}`}>
-                    {formatNumber(item.remainingQty)} {item.unit}
-                </td>
-                <td className={`border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-bold ${item.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {formatCurrency(item.profit)}
-                </td>
-                <td className="px-4 py-3 text-center">
-                    <button
-                        onClick={() => toggleProduct(item.key)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${isOpen
-                            ? "border-emerald-300 bg-emerald-600 text-white"
-                            : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
-                            }`}
-                    >
-                        {isOpen ? "▲ Hide" : "🔍 Details"}
-                    </button>
-                </td>
-            </tr>
+                                        const isOpen = !!openProducts[item.key];
+                                        return (
+                                            <Fragment key={item.key}>
+                                                <tr className={`hover:bg-slate-50 ${isOpen ? "bg-emerald-50/40" : ""}`}>
+                                                    <td className="border-r border-slate-100 px-4 py-3 font-bold text-slate-800">
+                                                        {item.itemName}
+                                                    </td>
+                                                    <td className="border-r-2 border-slate-300 px-4 py-3 text-xs font-semibold text-slate-500">
+                                                        {item.unit}
+                                                    </td>
+                                                    <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(item.purchaseQty)}
+                                                    </td>
+                                                    <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums text-violet-700">
+                                                        {formatCurrency(item.avgPurchaseRate)}
+                                                    </td>
+                                                    <td className="border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-semibold">
+                                                        {formatCurrency(item.purchaseValue)}
+                                                    </td>
+                                                    <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(item.saleQty)}
+                                                    </td>
+                                                    <td className="border-r border-slate-100 px-4 py-3 text-right tabular-nums text-blue-700">
+                                                        {formatCurrency(item.avgSaleRate)}
+                                                    </td>
+                                                    <td className="border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-semibold">
+                                                        {formatCurrency(item.saleValue)}
+                                                    </td>
+                                                    <td className={`border-r border-slate-100 px-4 py-3 text-right tabular-nums font-bold ${item.remainingQty > 0 ? "text-amber-700" : item.remainingQty < 0 ? "text-red-600" : "text-slate-500"}`}>
+                                                        {formatNumber(item.remainingQty)} {item.unit}
+                                                    </td>
+                                                    <td className={`border-r-2 border-slate-300 px-4 py-3 text-right tabular-nums font-bold ${item.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                                        {formatCurrency(item.profit)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            onClick={() => toggleProduct(item.key)}
+                                                            className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${isOpen
+                                                                ? "border-emerald-300 bg-emerald-600 text-white"
+                                                                : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+                                                                }`}
+                                                        >
+                                                            {isOpen ? "▲ Hide" : "🔍 Details"}
+                                                        </button>
+                                                    </td>
+                                                </tr>
 
-            {isOpen && (
-                <tr>
-                    <td colSpan={11} className="bg-slate-50 px-4 py-5">
-                        <div className="grid gap-5 lg:grid-cols-2">
-                            {/* ============ PURCHASE BREAKDOWN ============ */}
-                            <div className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
-                                <div className="mb-3 flex items-center justify-between border-b border-violet-100 pb-2">
-                                    <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-violet-700">
-                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-xs">📥</span>
-                                        Kahan se kharida (Companies)
-                                    </h4>
-                                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">
-                                        {item.purchaseRecords.length} record{item.purchaseRecords.length !== 1 ? "s" : ""}
-                                    </span>
-                                </div>
+                                                {isOpen && (
+                                                    <tr>
+                                                        <td colSpan={11} className="bg-slate-50 px-4 py-5">
+                                                            <div className="grid gap-5 lg:grid-cols-2">
+                                                                {/* ============ PURCHASE BREAKDOWN ============ */}
+                                                                <div className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+                                                                    <div className="mb-3 flex items-center justify-between border-b border-violet-100 pb-2">
+                                                                        <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-violet-700">
+                                                                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-xs">📥</span>
+                                                                            Kahan se kharida (Companies)
+                                                                        </h4>
+                                                                        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">
+                                                                            {item.purchaseRecords.length} record{item.purchaseRecords.length !== 1 ? "s" : ""}
+                                                                        </span>
+                                                                    </div>
 
-                                {item.purchaseRecords.length === 0 ? (
-                                    <p className="py-6 text-center text-xs text-slate-400">
-                                        Koi purchase record nahi
-                                    </p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {groupBy(item.purchaseRecords, (r) => r.company).map(({ key: company, items: records }) => {
-                                            const companyQty = records.reduce((s, r) => s + r.qty, 0);
-                                            const companyValue = records.reduce((s, r) => s + r.total, 0);
-                                            const companyAvg = companyQty > 0 ? companyValue / companyQty : 0;
-                                            return (
-                                                <div key={company} className="rounded-xl border border-violet-100 bg-violet-50/40 p-3">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="truncate text-sm font-bold text-slate-800">{company}</p>
-                                                            <p className="mt-0.5 text-xs text-slate-500">
-                                                                {records.length} PO{records.length > 1 ? "s" : ""} · {formatNumber(companyQty)} {item.unit} · Avg {formatCurrency(companyAvg)}
-                                                            </p>
-                                                        </div>
-                                                        <p className="shrink-0 text-sm font-bold text-violet-700">
-                                                            {formatCurrency(companyValue)}
-                                                        </p>
-                                                    </div>
+                                                                    {item.purchaseRecords.length === 0 ? (
+                                                                        <p className="py-6 text-center text-xs text-slate-400">
+                                                                            Koi purchase record nahi
+                                                                        </p>
+                                                                    ) : (
+                                                                        <div className="space-y-2">
+                                                                            {groupBy(item.purchaseRecords, (r) => r.company).map(({ key: company, items: records }) => {
+                                                                                const companyQty = records.reduce((s, r) => s + r.qty, 0);
+                                                                                const companyValue = records.reduce((s, r) => s + r.total, 0);
+                                                                                const companyAvg = companyQty > 0 ? companyValue / companyQty : 0;
+                                                                                return (
+                                                                                    <div key={company} className="rounded-xl border border-violet-100 bg-violet-50/40 p-3">
+                                                                                        <div className="flex items-start justify-between gap-2">
+                                                                                            <div className="min-w-0">
+                                                                                                <p className="truncate text-sm font-bold text-slate-800">{company}</p>
+                                                                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                                                                    {records.length} PO{records.length > 1 ? "s" : ""} · {formatNumber(companyQty)} {item.unit} · Avg {formatCurrency(companyAvg)}
+                                                                                                </p>
+                                                                                            </div>
+                                                                                            <p className="shrink-0 text-sm font-bold text-violet-700">
+                                                                                                {formatCurrency(companyValue)}
+                                                                                            </p>
+                                                                                        </div>
 
-                                                    <div className="mt-2 space-y-1 border-t border-violet-100 pt-2">
-                                                        {records.map((r) => (
-                                                            <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
-                                                                <div className="min-w-0 flex items-center gap-2">
-                                                                    <span className="font-mono text-[10px] font-semibold text-violet-600">{r.poNumber || "—"}</span>
-                                                                    <span className="text-slate-400">·</span>
-                                                                    <span className="tabular-nums">{formatNumber(r.qty)} {r.unit}</span>
-                                                                    <span className="text-slate-400">@</span>
-                                                                    <span className="tabular-nums">{formatCurrency(r.rate)}</span>
+                                                                                        <div className="mt-2 space-y-1 border-t border-violet-100 pt-2">
+                                                                                            {records.map((r) => (
+                                                                                                <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                                                                                                    <div className="min-w-0 flex items-center gap-2">
+                                                                                                        <span className="font-mono text-[10px] font-semibold text-violet-600">{r.poNumber || "—"}</span>
+                                                                                                        <span className="text-slate-400">·</span>
+                                                                                                        <span className="tabular-nums">{formatNumber(r.qty)} {r.unit}</span>
+                                                                                                        <span className="text-slate-400">@</span>
+                                                                                                        <span className="tabular-nums">{formatCurrency(r.rate)}</span>
+                                                                                                    </div>
+                                                                                                    <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatCurrency(r.total)}</span>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+
+                                                                            <div className="mt-3 rounded-xl bg-violet-600 px-3 py-2.5 text-white">
+                                                                                <div className="flex items-center justify-between text-xs font-bold">
+                                                                                    <span>📊 Total Purchase</span>
+                                                                                    <span className="tabular-nums">{formatNumber(item.purchaseQty)} {item.unit} · {formatCurrency(item.purchaseValue)}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatCurrency(r.total)}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
 
-                                        <div className="mt-3 rounded-xl bg-violet-600 px-3 py-2.5 text-white">
-                                            <div className="flex items-center justify-between text-xs font-bold">
-                                                <span>📊 Total Purchase</span>
-                                                <span className="tabular-nums">{formatNumber(item.purchaseQty)} {item.unit} · {formatCurrency(item.purchaseValue)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                                                                {/* ============ SALE BREAKDOWN ============ */}
+                                                                <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
+                                                                    <div className="mb-3 flex items-center justify-between border-b border-blue-100 pb-2">
+                                                                        <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-blue-700">
+                                                                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs">📤</span>
+                                                                            Kisko becha (Customers)
+                                                                        </h4>
+                                                                        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700">
+                                                                            {item.saleRecords.length} record{item.saleRecords.length !== 1 ? "s" : ""}
+                                                                        </span>
+                                                                    </div>
 
-                            {/* ============ SALE BREAKDOWN ============ */}
-                            <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
-                                <div className="mb-3 flex items-center justify-between border-b border-blue-100 pb-2">
-                                    <h4 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-blue-700">
-                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-xs">📤</span>
-                                        Kisko becha (Customers)
-                                    </h4>
-                                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700">
-                                        {item.saleRecords.length} record{item.saleRecords.length !== 1 ? "s" : ""}
-                                    </span>
-                                </div>
+                                                                    {item.saleRecords.length === 0 ? (
+                                                                        <p className="py-6 text-center text-xs text-slate-400">
+                                                                            Koi sale record nahi
+                                                                        </p>
+                                                                    ) : (
+                                                                        <div className="space-y-2">
+                                                                            {groupBy(item.saleRecords, (r) => r.company).map(({ key: company, items: records }) => {
+                                                                                const companyQty = records.reduce((s, r) => s + r.qty, 0);
+                                                                                const companyValue = records.reduce((s, r) => s + r.total, 0);
+                                                                                const companyAvg = companyQty > 0 ? companyValue / companyQty : 0;
+                                                                                return (
+                                                                                    <div key={company} className="rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                                                                                        <div className="flex items-start justify-between gap-2">
+                                                                                            <div className="min-w-0">
+                                                                                                <p className="truncate text-sm font-bold text-slate-800">{company}</p>
+                                                                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                                                                    {records.length} order{records.length > 1 ? "s" : ""} · {formatNumber(companyQty)} {item.unit} · Avg {formatCurrency(companyAvg)}
+                                                                                                </p>
+                                                                                            </div>
+                                                                                            <p className="shrink-0 text-sm font-bold text-blue-700">
+                                                                                                {formatCurrency(companyValue)}
+                                                                                            </p>
+                                                                                        </div>
 
-                                {item.saleRecords.length === 0 ? (
-                                    <p className="py-6 text-center text-xs text-slate-400">
-                                        Koi sale record nahi
-                                    </p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {groupBy(item.saleRecords, (r) => r.company).map(({ key: company, items: records }) => {
-                                            const companyQty = records.reduce((s, r) => s + r.qty, 0);
-                                            const companyValue = records.reduce((s, r) => s + r.total, 0);
-                                            const companyAvg = companyQty > 0 ? companyValue / companyQty : 0;
-                                            return (
-                                                <div key={company} className="rounded-xl border border-blue-100 bg-blue-50/40 p-3">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="truncate text-sm font-bold text-slate-800">{company}</p>
-                                                            <p className="mt-0.5 text-xs text-slate-500">
-                                                                {records.length} order{records.length > 1 ? "s" : ""} · {formatNumber(companyQty)} {item.unit} · Avg {formatCurrency(companyAvg)}
-                                                            </p>
-                                                        </div>
-                                                        <p className="shrink-0 text-sm font-bold text-blue-700">
-                                                            {formatCurrency(companyValue)}
-                                                        </p>
-                                                    </div>
+                                                                                        <div className="mt-2 space-y-1 border-t border-blue-100 pt-2">
+                                                                                            {records.map((r) => (
+                                                                                                <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                                                                                                    <div className="min-w-0 flex items-center gap-2">
+                                                                                                        <span className="font-mono text-[10px] font-semibold text-blue-600">{r.orderNumber || "—"}</span>
+                                                                                                        <span className="text-slate-400">·</span>
+                                                                                                        <span className="truncate text-slate-600">{r.customer || "—"}</span>
+                                                                                                        <span className="text-slate-400">·</span>
+                                                                                                        <span className="tabular-nums">{formatNumber(r.qty)} {r.unit}</span>
+                                                                                                        <span className="text-slate-400">@</span>
+                                                                                                        <span className="tabular-nums">{formatCurrency(r.rate)}</span>
+                                                                                                    </div>
+                                                                                                    <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatCurrency(r.total)}</span>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
 
-                                                    <div className="mt-2 space-y-1 border-t border-blue-100 pt-2">
-                                                        {records.map((r) => (
-                                                            <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
-                                                                <div className="min-w-0 flex items-center gap-2">
-                                                                    <span className="font-mono text-[10px] font-semibold text-blue-600">{r.orderNumber || "—"}</span>
-                                                                    <span className="text-slate-400">·</span>
-                                                                    <span className="truncate text-slate-600">{r.customer || "—"}</span>
-                                                                    <span className="text-slate-400">·</span>
-                                                                    <span className="tabular-nums">{formatNumber(r.qty)} {r.unit}</span>
-                                                                    <span className="text-slate-400">@</span>
-                                                                    <span className="tabular-nums">{formatCurrency(r.rate)}</span>
+                                                                            <div className="mt-3 rounded-xl bg-blue-600 px-3 py-2.5 text-white">
+                                                                                <div className="flex items-center justify-between text-xs font-bold">
+                                                                                    <span>📊 Total Sale</span>
+                                                                                    <span className="tabular-nums">{formatNumber(item.saleQty)} {item.unit} · {formatCurrency(item.saleValue)}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatCurrency(r.total)}</span>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
 
-                                        <div className="mt-3 rounded-xl bg-blue-600 px-3 py-2.5 text-white">
-                                            <div className="flex items-center justify-between text-xs font-bold">
-                                                <span>📊 Total Sale</span>
-                                                <span className="tabular-nums">{formatNumber(item.saleQty)} {item.unit} · {formatCurrency(item.saleValue)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* ---------- PROFIT SUMMARY BAR ---------- */}
-                        <div className={`mt-4 rounded-xl border p-3 ${item.profit >= 0 ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                                <div className="flex flex-wrap items-center gap-4">
-                                    <span className="text-slate-600">
-                                        Remaining: <strong className={item.remainingQty >= 0 ? "text-amber-700" : "text-red-600"}>
-                                            {formatNumber(item.remainingQty)} {item.unit}
-                                        </strong>
-                                    </span>
-                                    <span className="text-slate-600">
-                                        Cost of Sold: <strong className="text-slate-800">{formatCurrency(item.saleQty * item.avgPurchaseRate)}</strong>
-                                    </span>
-                                </div>
-                                <span className={`text-base font-black ${item.profit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                                    {item.profit >= 0 ? "✓ Profit: " : "⚠ Loss: "}
-                                    {formatCurrency(Math.abs(item.profit))}
-                                </span>
-                            </div>
-                        </div>
-                    </td>
-                </tr>
-            )}
-        </Fragment>
-    );
-})}
+                                                            {/* ---------- PROFIT SUMMARY BAR ---------- */}
+                                                            <div className={`mt-4 rounded-xl border p-3 ${item.profit >= 0 ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+                                                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                                                                    <div className="flex flex-wrap items-center gap-4">
+                                                                        <span className="text-slate-600">
+                                                                            Remaining: <strong className={item.remainingQty >= 0 ? "text-amber-700" : "text-red-600"}>
+                                                                                {formatNumber(item.remainingQty)} {item.unit}
+                                                                            </strong>
+                                                                        </span>
+                                                                        <span className="text-slate-600">
+                                                                            Cost of Sold: <strong className="text-slate-800">{formatCurrency(item.saleQty * item.avgPurchaseRate)}</strong>
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className={`text-base font-black ${item.profit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                                                                        {item.profit >= 0 ? "✓ Profit: " : "⚠ Loss: "}
+                                                                        {formatCurrency(Math.abs(item.profit))}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    })}
                                 </tbody>
                                 <tfoot className="bg-slate-100 font-bold text-slate-800">
                                     <tr>

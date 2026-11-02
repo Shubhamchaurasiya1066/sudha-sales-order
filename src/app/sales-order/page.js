@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getAvailableStock } from "@/lib/inventory";
 
 const companies = [
     "Sudha Chemical Company",
@@ -29,15 +28,10 @@ const manufacturerOptions = [
     "Accord Chemical Corportion",
 ];
 
-// ✅ Manufacturer → Destinations mapping
-// Agar kisi manufacturer ki entry nahi hai ya khali array hai,
-// to uske liye Destination field bilkul nahi dikhega
 const manufacturerDestinations = {
-    "DCM Shriram Industries Ltd.": ["Kota","Jhagadia"],
+    "DCM Shriram Industries Ltd.": ["Kota", "Jhagadia"],
     "Grassim Industries Limited": ["Rehla", "Renukoot", "Magda"],
-    "Khaitan Chemicals and Fertilizers Limited": ["Jhansi", "Maluan", "Rajnandgoan","Nimrani"],
-    // ✅ "SHRIRAM VINYL & CHEMICAL INDUSTRIES" ke liye koi destination nahi
-    // Isliye is manufacturer ko select karne par Destination field nahi dikhega
+    "Khaitan Chemicals and Fertilizers Limited": ["Jhansi", "Maluan", "Rajnandgoan", "Nimrani"],
 };
 
 const initialForm = {
@@ -64,28 +58,14 @@ const initialForm = {
     gstExtra: false,
 };
 
+// ✅ fields array me ab sirf text/email/number fields hain (selects manual hain)
 const fields = [
-    { name: "qty", label: "Quantity", placeholder: "Enter quantity", type: "number", required: true },
     { name: "customerName", label: "Customer Name", placeholder: "Enter customer name", required: true },
     { name: "customerAddress", label: "Customer Address", placeholder: "Enter complete address", required: true, textarea: true },
     { name: "customerNumber", label: "Customer Number", placeholder: "10-digit mobile number", type: "tel", required: true },
     { name: "emailId", label: "Customer Email ID", placeholder: "customer@example.com", type: "email", required: true },
     { name: "rate", label: "Rate (₹)", placeholder: "Enter rate", type: "number", required: true },
     { name: "freight", label: "Freight (₹)", placeholder: "Enter freight amount (optional)", type: "number", required: false },
-    {
-        name: "itemName", label: "Item / Chemical Name", placeholder: "Select chemical / product", required: true, options: [
-            "Sulphuric Acid (98%)",
-            "Hydrochloric Acid (30-33%)",
-            "Nitric Acid",
-            "Phosphoric Acid",
-            "Acetic Acid",
-            "Caustic Soda Lye",
-            "Soda Ash",
-            "Cuastic Soda Flakes",
-            "Citric Acid",
-            "Oleum(23%)",
-        ]
-    },
     { name: "brokerName", label: "Broker Name", placeholder: "Enter broker name" },
     { name: "brokerContactNumber", label: "Broker Contact Number", placeholder: "10-digit mobile number", type: "tel" },
     { name: "brokerEmailId", label: "Broker Email ID", placeholder: "broker@example.com", type: "email" },
@@ -109,23 +89,14 @@ function Field({ field, value, onChange, error }) {
                 {field.label} {field.required && <span className="text-red-500">*</span>}
             </label>
 
-            {field.options ? (
-                <select {...common}>
-                    <option value="">{field.placeholder || "Select an option"}</option>
-                    {field.options.map((option) => (
-                        <option key={option} value={option}>
-                            {option}
-                        </option>
-                    ))}
-                </select>
-            ) : field.textarea ? (
+            {field.textarea ? (
                 <textarea {...common} rows={3} />
             ) : (
                 <input
                     {...common}
                     type={field.type || "text"}
                     min={field.type === "number" ? "0" : undefined}
-                    step={field.name === "qty" ? "any" : "0.01"}
+                    step={field.name === "rate" || field.name === "freight" ? "0.01" : undefined}
                 />
             )}
 
@@ -145,12 +116,10 @@ export default function SalesOrderPage() {
         return () => window.clearTimeout(timeoutId);
     }, [success]);
 
-    // ✅ Manufacturer select karne par destinations
     const availableDestinations = form.manufacturerName
         ? manufacturerDestinations[form.manufacturerName] || []
         : [];
 
-    // ✅ Destination field dikhega ya nahi
     const showDestinationField = availableDestinations.length > 0;
 
     function updateField(event) {
@@ -159,12 +128,10 @@ export default function SalesOrderPage() {
         setForm((previous) => {
             const next = { ...previous, [name]: value };
 
-            // ✅ Manufacturer change → place reset
             if (name === "manufacturerName") {
                 next.place = "";
             }
 
-            // Ex/For rule: "For" select → freight clear
             if (name === "exFor" && value === "For") {
                 next.freight = "";
             }
@@ -186,7 +153,6 @@ export default function SalesOrderPage() {
         if (!form.companyName) nextErrors.companyName = "Please select a company.";
         if (!form.manufacturerName) nextErrors.manufacturerName = "Please select a manufacturer/trader.";
 
-        // ✅ Place required sirf tab jab destinations available ho
         if (showDestinationField && !form.place) {
             nextErrors.place = "Please select a destination / place.";
         }
@@ -197,17 +163,7 @@ export default function SalesOrderPage() {
             Number(form.qty) <= 0
         ) {
             nextErrors.qty = "Quantity must be greater than zero.";
-        } else if (form.itemName) {
-            const requestedQty = Number(form.qty);
-            const stock = getAvailableStock(form.itemName, form.qtyUnit);
-            const availableQty = Number(stock.availableQty) || 0;
-
-            if (requestedQty > availableQty) {
-                nextErrors.qty =
-                    `Insufficient stock! Available: ${availableQty} ${form.qtyUnit}. ` +
-                    `Requested: ${requestedQty} ${form.qtyUnit}.`;
-            }
-        }
+        } 
 
         if (!form.customerName.trim()) {
             nextErrors.customerName = "Customer name is required.";
@@ -308,7 +264,6 @@ export default function SalesOrderPage() {
 
             const newOrder = {
                 ...form,
-                // ✅ Agar destination field nahi thi, place khali "" hi rahega
                 place: showDestinationField ? form.place : "",
                 freight: form.exFor === "For" ? 0 : Number(form.freight) || 0,
                 ipAddress: capturedIpAddress,
@@ -433,6 +388,7 @@ export default function SalesOrderPage() {
                     </div>
 
                     <div className="min-w-0 space-y-8 p-4 sm:p-6 lg:p-8">
+                        {/* SECTION 01: COMPANY & ORDER DETAILS */}
                         <section>
                             <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
@@ -442,7 +398,6 @@ export default function SalesOrderPage() {
                             </h3>
 
                             <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
-                                {/* ============ COMPANY (Full width) ============ */}
                                 <div className="md:col-span-2">
                                     <label
                                         htmlFor="companyName"
@@ -476,7 +431,6 @@ export default function SalesOrderPage() {
                                     )}
                                 </div>
 
-                                {/* ============ MANUFACTURER / TRADER (Full width) ============ */}
                                 <div className="md:col-span-2">
                                     <label
                                         htmlFor="manufacturerName"
@@ -510,7 +464,6 @@ export default function SalesOrderPage() {
                                     )}
                                 </div>
 
-                                {/* ============ DESTINATION / PLACE (sirf tab dikhe jab destinations available ho) ============ */}
                                 {showDestinationField && (
                                     <div className="md:col-span-2">
                                         <label
@@ -546,7 +499,7 @@ export default function SalesOrderPage() {
                                     </div>
                                 )}
 
-                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
+                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 md:col-span-2">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                         Serial Number
                                     </p>
@@ -554,15 +507,72 @@ export default function SalesOrderPage() {
                                         Auto-generated on submission
                                     </p>
                                 </div>
+                            </div>
+                        </section>
+
+                        <div className="border-t border-slate-100" />
+
+                        {/* SECTION 02: CUSTOMER & PRICING DETAILS */}
+                        <section>
+                            <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                                    02
+                                </span>
+                                Customer & Pricing Details
+                            </h3>
+
+                            <div className="grid gap-5 md:grid-cols-2">
+                                {/* Customer fields: Name, Address, Number, Email */}
+                                {fields.slice(0, 4).map((field) => (
+                                    <Field
+                                        key={field.name}
+                                        field={field}
+                                        value={form[field.name]}
+                                        onChange={updateField}
+                                        error={errors[field.name]}
+                                    />
+                                ))}
+
+                                {/* ✅ Naye fields Customer Details ke saath */}
+                                <div>
+                                    <label htmlFor="itemName" className="mb-2 block text-sm font-semibold text-slate-700">
+                                        Item / Chemical Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        id="itemName"
+                                        name="itemName"
+                                        value={form.itemName}
+                                        onChange={updateField}
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.itemName ? "border-red-400" : "border-slate-200"}`}
+                                    >
+                                        <option value="">Select chemical / product</option>
+                                        {["Sulphuric Acid (98%)",
+                                            "Hydrochloric Acid (30-33%)",
+                                            "Hydrogen Peroxide (50%)",
+                                            "Hydrogen Peroxide (60%)",
+                                            "Nitric Acid",
+                                            "Phosphoric Acid",
+                                            "Acetic Acid",
+                                            "Weak Nitric Acid",
+                                            "Methylene Dichloride (MDC)",
+                                            "Poly Alluminium Chloride (PVC)",
+                                            "Chloroform",
+                                            "Caustic Soda Lye",
+                                            "Soda Ash",
+                                            "Ethyl Acetate",
+                                            "Cuastic Soda Flakes",
+                                            "Citric Acid",
+                                            "Oleum(23%)",].map((chem) => (
+                                                <option key={chem} value={chem}>{chem}</option>
+                                            ))}
+                                    </select>
+                                    {errors.itemName && <p className="mt-1 text-xs text-red-600">{errors.itemName}</p>}
+                                </div>
 
                                 <div className="w-full min-w-0">
-                                    <label
-                                        htmlFor="qty"
-                                        className="mb-2 block text-sm font-semibold text-slate-700"
-                                    >
+                                    <label htmlFor="qty" className="mb-2 block text-sm font-semibold text-slate-700">
                                         Quantity <span className="text-red-500">*</span>
                                     </label>
-
                                     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_100px] gap-2">
                                         <input
                                             id="qty"
@@ -575,7 +585,6 @@ export default function SalesOrderPage() {
                                             placeholder="e.g. 100"
                                             className="block w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                         />
-
                                         <select
                                             name="qtyUnit"
                                             value={form.qtyUnit}
@@ -589,61 +598,37 @@ export default function SalesOrderPage() {
                                             <option value="BAG">BAG</option>
                                         </select>
                                     </div>
-
-                                    {errors.qty && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.qty}
-                                        </p>
-                                    )}
+                                    {errors.qty && <p className="mt-1 text-xs text-red-600">{errors.qty}</p>}
                                 </div>
 
                                 <div>
-                                    <label
-                                        htmlFor="exFor"
-                                        className="mb-2 block text-sm font-semibold text-slate-700"
-                                    >
+                                    <label htmlFor="exFor" className="mb-2 block text-sm font-semibold text-slate-700">
                                         Ex/For <span className="text-red-500">*</span>
                                     </label>
-
                                     <select
                                         id="exFor"
                                         name="exFor"
                                         value={form.exFor}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.exFor
-                                            ? "border-red-400"
-                                            : "border-slate-200"
-                                            }`}
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.exFor ? "border-red-400" : "border-slate-200"}`}
                                     >
                                         <option value="">Select option</option>
                                         <option value="Ex">Ex</option>
                                         <option value="For">For</option>
                                     </select>
-
-                                    {errors.exFor && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.exFor}
-                                        </p>
-                                    )}
+                                    {errors.exFor && <p className="mt-1 text-xs text-red-600">{errors.exFor}</p>}
                                 </div>
 
                                 <div>
-                                    <label
-                                        htmlFor="paymentTerms"
-                                        className="mb-2 block text-sm font-semibold text-slate-700"
-                                    >
+                                    <label htmlFor="paymentTerms" className="mb-2 block text-sm font-semibold text-slate-700">
                                         Payment Terms <span className="text-red-500">*</span>
                                     </label>
-
                                     <select
                                         id="paymentTerms"
                                         name="paymentTerms"
                                         value={form.paymentTerms}
                                         onChange={updateField}
-                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.paymentTerms
-                                            ? "border-red-400"
-                                            : "border-slate-200"
-                                            }`}
+                                        className={`w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${errors.paymentTerms ? "border-red-400" : "border-slate-200"}`}
                                     >
                                         <option value="">Select payment terms</option>
                                         <option value="Advance Payment">Advance Payment</option>
@@ -656,32 +641,14 @@ export default function SalesOrderPage() {
                                         <option value="60 Days">60 Days</option>
                                         <option value="90 Days">90 Days</option>
                                     </select>
-
-                                    {errors.paymentTerms && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.paymentTerms}
-                                        </p>
-                                    )}
+                                    {errors.paymentTerms && <p className="mt-1 text-xs text-red-600">{errors.paymentTerms}</p>}
                                 </div>
-                            </div>
-                        </section>
 
-                        <div className="border-t border-slate-100" />
-
-                        <section>
-                            <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
-                                    02
-                                </span>
-                                Customer & Pricing Details
-                            </h3>
-
-                            <div className="grid gap-5 md:grid-cols-2">
-                                {fields.slice(0, 7).map((field) => {
-                                    if (field.name === "freight" && form.exFor !== "Ex") {
+                                {/* Rate aur Freight */}
+                                {fields.slice(4, 6).map((field) => {
+                                    if (field.name === "freight" && form.exFor !== "For") {
                                         return null;
                                     }
-
                                     return (
                                         <Field
                                             key={field.name}
@@ -766,11 +733,11 @@ export default function SalesOrderPage() {
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
                                     03
                                 </span>
-                                Product & Broker Details
+                                Broker Details
                             </h3>
 
                             <div className="grid gap-5 md:grid-cols-2">
-                                {fields.slice(7).map((field) => (
+                                {fields.slice(6).map((field) => (
                                     <Field
                                         key={field.name}
                                         field={field}
