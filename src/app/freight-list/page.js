@@ -13,6 +13,15 @@ const defaultTransporters = [
   "Maa durga Transport",
 ];
 
+// ✅ NAYA: Default Item List
+const defaultItems = [
+  "CAUSTIC SODA FLAKES",
+  "CAUSTIC SODA LYE",
+  "SODIUM CAUSTIC SODA LYE",
+  "SULPHURIC ACID",
+  "HYDROCHLORIC ACID"
+];
+
 export default function FreightListPage() {
   // --- STATES ---
   const [freights, setFreights] = useState([]);
@@ -22,6 +31,10 @@ export default function FreightListPage() {
   // ✅ Transporter dropdown state
   const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
   const transporterWrapperRef = useRef(null);
+
+  // ✅ NAYA: Item dropdown state
+  const [showItemDropdown, setShowItemDropdown] = useState(false);
+  const itemWrapperRef = useRef(null);
 
   const [form, setForm] = useState({
     fromPlace: "",
@@ -45,11 +58,14 @@ export default function FreightListPage() {
     }
   }, []);
 
-  // ✅ Bahar click karne par dropdown band karna
+  // ✅ Bahar click karne par dropdowns band karna
   useEffect(() => {
     function handleClickOutside(event) {
       if (transporterWrapperRef.current && !transporterWrapperRef.current.contains(event.target)) {
         setShowTransporterDropdown(false);
+      }
+      if (itemWrapperRef.current && !itemWrapperRef.current.contains(event.target)) {
+        setShowItemDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -156,9 +172,18 @@ export default function FreightListPage() {
     ...freights.map(f => f.transporterName).filter(Boolean)
   ]));
 
-  // ✅ Filtered options (search text ke hisaab se)
   const filteredTransporterOptions = allTransporterNames.filter(t => 
     t.toLowerCase().includes(form.transporterName.toLowerCase())
+  );
+
+  // ✅ NAYA: Item names ki unique list
+  const allItemNames = Array.from(new Set([
+    ...defaultItems,
+    ...freights.map(f => f.itemName).filter(Boolean)
+  ]));
+
+  const filteredItemOptions = allItemNames.filter(i => 
+    i.toLowerCase().includes(form.itemName.toLowerCase())
   );
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10";
@@ -273,15 +298,43 @@ export default function FreightListPage() {
                 )}
               </div>
 
-              <div>
+              {/* ✅ SMART ITEM NAME INPUT */}
+              <div className="relative" ref={itemWrapperRef}>
                 <label className={labelClass}>Item Name</label>
                 <input
                   name="itemName"
                   value={form.itemName}
                   onChange={handleChange}
-                  placeholder="e.g. CAUSTIC SODA FLAKES"
+                  onFocus={() => setShowItemDropdown(true)}
+                  placeholder="Type or select item..."
                   className={inputClass}
+                  autoComplete="off"
                 />
+
+                {showItemDropdown && (
+                  <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {filteredItemOptions.length === 0 ? (
+                      <div className="p-3 text-sm text-slate-400">
+                        {form.itemName ? "No match found. You can save this as a new item." : "No items saved yet. Type to add."}
+                      </div>
+                    ) : (
+                      <ul className="py-1">
+                        {filteredItemOptions.map((name) => (
+                          <li
+                            key={name}
+                            onClick={() => {
+                              setForm({ ...form, itemName: name });
+                              setShowItemDropdown(false);
+                            }}
+                            className="cursor-pointer px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                          >
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
