@@ -42,7 +42,7 @@ export default function DeliveryOrderPage() {
     if (!form.vehicleNumber.trim()) next.vehicleNumber = "Vehicle Number is required.";
     if (!form.materialCode.trim()) next.materialCode = "Material Code is required.";
     if (!form.quantity || Number(form.quantity) <= 0) next.quantity = "Quantity is required.";
-    if (!form.totalBags || Number(form.totalBags) <= 0) next.totalBags = "Total Bags is required.";
+    //if (!form.totalBags || Number(form.totalBags) <= 0) next.totalBags = "Total Bags is required.";
     return next;
   }
 
