@@ -1,14 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+
+// ✅ NAYA: Default Transporter List
+const defaultTransporters = [
+  "BDR Logistics",
+  "SBT Logistics",
+  "Renuchem International",
+  "Sharda Logistics",
+  "New Mahaveer Transport",
+  "Maa durga Transport",
+];
 
 export default function FreightListPage() {
   // --- STATES ---
   const [freights, setFreights] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingId, setEditingId] = useState(null); // Edit track karne ke liye state
+  const [editingId, setEditingId] = useState(null);
   
+  // ✅ Transporter dropdown state
+  const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
+  const transporterWrapperRef = useRef(null);
+
   const [form, setForm] = useState({
     fromPlace: "",
     toPlace: "",
@@ -31,6 +45,17 @@ export default function FreightListPage() {
     }
   }, []);
 
+  // ✅ Bahar click karne par dropdown band karna
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (transporterWrapperRef.current && !transporterWrapperRef.current.contains(event.target)) {
+        setShowTransporterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Form change handle karna
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -45,15 +70,13 @@ export default function FreightListPage() {
     }
 
     if (editingId) {
-      // --- UPDATE LOGIC ---
       const updated = freights.map((item) =>
         item.id === editingId ? { ...item, ...form } : item
       );
       setFreights(updated);
       localStorage.setItem("freightData", JSON.stringify(updated));
-      setEditingId(null); // Edit mode band karo
+      setEditingId(null);
     } else {
-      // --- ADD NEW LOGIC ---
       const newFreight = {
         id: Date.now().toString(),
         ...form,
@@ -63,11 +86,10 @@ export default function FreightListPage() {
       localStorage.setItem("freightData", JSON.stringify(updated));
     }
 
-    // Form Reset
     resetForm();
   };
 
-  // Edit button click karne par form me data dalna
+  // Edit button click
   const handleEdit = (item) => {
     setForm({
       fromPlace: item.fromPlace,
@@ -79,16 +101,14 @@ export default function FreightListPage() {
       alternateNumber: item.alternateNumber || "",
     });
     setEditingId(item.id);
-    window.scrollTo({ top: 0, behavior: "smooth" }); // Form tak scroll karo
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Cancel Edit
   const handleCancelEdit = () => {
     setEditingId(null);
     resetForm();
   };
 
-  // Form Reset function
   const resetForm = () => {
     setForm({ 
       fromPlace: "", 
@@ -101,14 +121,12 @@ export default function FreightListPage() {
     });
   };
 
-  // Data delete karna
   const handleDelete = (id) => {
     if (confirm("Kya aap sach me ye entry delete karna chahte hain?")) {
       const updated = freights.filter((item) => item.id !== id);
       setFreights(updated);
       localStorage.setItem("freightData", JSON.stringify(updated));
       
-      // Agar delete hua item hi edit ho raha tha, to form reset kar do
       if (editingId === id) {
         setEditingId(null);
         resetForm();
@@ -116,7 +134,6 @@ export default function FreightListPage() {
     }
   };
 
-  // Search filter logic
   const filteredFreights = freights.filter((item) => {
     const query = searchQuery.toLowerCase();
     const placeCombined = `${item.fromPlace} - ${item.toPlace}`.toLowerCase();
@@ -132,6 +149,17 @@ export default function FreightListPage() {
       altContact.includes(query)
     );
   });
+
+  // ✅ FIX: Default list + History wale dono names milakar ek unique list banayi
+  const allTransporterNames = Array.from(new Set([
+    ...defaultTransporters,
+    ...freights.map(f => f.transporterName).filter(Boolean)
+  ]));
+
+  // ✅ Filtered options (search text ke hisaab se)
+  const filteredTransporterOptions = allTransporterNames.filter(t => 
+    t.toLowerCase().includes(form.transporterName.toLowerCase())
+  );
 
   const inputClass = "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10";
   const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
@@ -206,15 +234,43 @@ export default function FreightListPage() {
                 />
               </div>
 
-              <div>
+              {/* ✅ SMART TRANSPORTER INPUT */}
+              <div className="relative" ref={transporterWrapperRef}>
                 <label className={labelClass}>Transporter Name</label>
                 <input
                   name="transporterName"
                   value={form.transporterName}
                   onChange={handleChange}
-                  placeholder="e.g. VINI industries"
+                  onFocus={() => setShowTransporterDropdown(true)}
+                  placeholder="Type or select transporter..."
                   className={inputClass}
+                  autoComplete="off"
                 />
+
+                {showTransporterDropdown && (
+                  <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {filteredTransporterOptions.length === 0 ? (
+                      <div className="p-3 text-sm text-slate-400">
+                        {form.transporterName ? "No match found. You can save this as a new transporter." : "No transporters saved yet. Type to add."}
+                      </div>
+                    ) : (
+                      <ul className="py-1">
+                        {filteredTransporterOptions.map((name) => (
+                          <li
+                            key={name}
+                            onClick={() => {
+                              setForm({ ...form, transporterName: name });
+                              setShowTransporterDropdown(false);
+                            }}
+                            className="cursor-pointer px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                          >
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -280,7 +336,6 @@ export default function FreightListPage() {
                 Freight List ({filteredFreights.length})
               </h2>
               
-              {/* SEARCH BAR */}
               <div className="relative w-full sm:w-72">
                 <input
                   type="text"
