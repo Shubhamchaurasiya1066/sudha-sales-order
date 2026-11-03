@@ -3,12 +3,32 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 
+const chemicalOptions = [
+    "Sulphuric Acid (98%)",
+    "Hydrochloric Acid (30-33%)",
+    "Hydrogen Peroxide (50%)",
+    "Hydrogen Peroxide (60%)",
+    "Nitric Acid",
+    "Phosphoric Acid",
+    "Acetic Acid",
+    "Weak Nitric Acid",
+    "Methylene Dichloride (MDC)",
+    "Poly Alluminium Chloride (PVC)",
+    "Chloroform",
+    "Caustic Soda Lye",
+    "Soda Ash",
+    "Ethyl Acetate",
+    "Cuastic Soda Flakes",
+    "Citric Acid",
+    "Oleum(23%)",
+];
+
 export default function CausticSodaLyePage() {
   const pdfRef = useRef(null);
 
   const [form, setForm] = useState({
-    toAddress: "SHRIRAM ALKALI & CHEMICALS, GIDC JHAGADIA, JHAGADIA", // NAYA FIELD
-    itemName: "CAUSTIC SODA LYE",
+    toAddress: "SHRIRAM ALKALI & CHEMICALS, GIDC JHAGADIA, JHAGADIA",
+    itemName: "Caustic Soda Lye", // ✅ Default selected value
     date: "10/10/2026",
     qty: "41",
     transportName: "OWN",
@@ -72,12 +92,16 @@ export default function CausticSodaLyePage() {
           Item Base – Delivery Order
         </h2>
 
-        {/* NAYA INPUT: TO Address */}
         <label style={styles.label}>TO (Address)</label>
         <input style={styles.input} name="toAddress" value={form.toAddress} onChange={handleChange} />
 
+        {/* ✅ ITEM NAME KO DROPDOWN BANA DIYA */}
         <label style={styles.label}>Item Name</label>
-        <input style={styles.input} name="itemName" value={form.itemName} onChange={handleChange} />
+        <select style={styles.input} name="itemName" value={form.itemName} onChange={handleChange}>
+          {chemicalOptions.map((chem) => (
+            <option key={chem} value={chem}>{chem}</option>
+          ))}
+        </select>
 
         <label style={styles.label}>Date (dd/mm/yyyy)</label>
         <input style={styles.input} name="date" value={form.date} onChange={handleChange} />
@@ -194,7 +218,7 @@ export default function CausticSodaLyePage() {
             unoptimized
           />
 
-          {/* Current Date & Time (Wapas Original Format Me) */}
+          {/* Current Date & Time */}
           <div style={{ fontSize: 12, color: "#333", marginTop: 5, fontWeight: "bold" }}>
             Date: {form.signatureDate || "Generating..."}
           </div>
@@ -205,7 +229,7 @@ export default function CausticSodaLyePage() {
           {/* Divider Line */}
           <hr style={{ width: "250px", border: "none", borderTop: "1px dashed #999", margin: "10px 0" }} />
           
-          {/* Thank You Text (Attractive) */}
+          {/* Thank You Text */}
           <div style={{ fontSize: 13, lineHeight: 1.6, color: "#222" }}>
             <span style={{ fontWeight: "bold", fontSize: 14 }}>Thank You,</span><br />
             With Regards<br />
@@ -245,6 +269,7 @@ const styles = {
     border: "1px solid #ccc",
     borderRadius: 4,
     fontSize: 14,
+    background: "#fff", // Ensures dropdown background is white
   },
   button: {
     marginTop: 18,
@@ -279,7 +304,6 @@ const styles = {
     borderTop: "2px solid #000",
     margin: "8px 0 18px 0",
   },
-  /* NAYA STYLE: TO Section */
   toSection: {
     marginBottom: 20,
     fontSize: 14,
@@ -321,8 +345,6 @@ const styles = {
     padding: "8px 6px",
     textAlign: "left",
   },
-  
-  /* ===== SIGNATURE STYLES ===== */
   signatureBlock: {
     marginTop: 40,
     display: "flex",
