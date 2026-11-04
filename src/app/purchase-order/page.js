@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const STORAGE_KEY = "sudha_purchase_orders";
-const CUSTOM_MANUFACTURERS_KEY = "sudha_custom_manufacturers"; // ✅ Naya key for custom names
+const CUSTOM_MANUFACTURERS_KEY = "sudha_custom_manufacturers";
 const units = ["L", "KG", "MT", "BAG"];
 const packagingOptions = [
     "50kg can",
@@ -51,6 +51,13 @@ const defaultManufacturers = [
     "Accord Chemical Corportion",
 ];
 
+// ✅ NAYA: Destination mapping
+const manufacturerDestinations = {
+    "DCM Shriram Industries Ltd.": ["Kota", "Jhagadia"],
+    "Grassim Industries Limited": ["Rehla", "Renukoot", "Magda"],
+    "Khaitan Chemicals and Fertilizers Limited": ["Jhansi", "Maluan", "Rajnandgoan", "Nimrani"],
+};
+
 const initialForm = {
     manufacturerName: "",
     itemName: "",
@@ -62,7 +69,7 @@ const initialForm = {
     discount: "0",
     billingPrice: "",
     exFor: "",
-    place: "",
+    place: "", // ✅ Destination
     supplierEmail: "",
     brokerName: "",
     brokerContactNumber: "",
@@ -80,12 +87,10 @@ export default function PurchaseOrderPage() {
     const [notice, setNotice] = useState("");
     const [noticeType, setNoticeType] = useState("success");
     
-    // ✅ Custom Manufacturer feature ke liye state
     const [customManufacturers, setCustomManufacturers] = useState([]);
     const [showManufacturerDropdown, setShowManufacturerDropdown] = useState(false);
     const manufacturerWrapperRef = useRef(null);
 
-    // ✅ Load custom manufacturers from localStorage
     useEffect(() => {
         try {
             const saved = JSON.parse(localStorage.getItem(CUSTOM_MANUFACTURERS_KEY) || "[]");
@@ -95,7 +100,6 @@ export default function PurchaseOrderPage() {
         }
     }, []);
 
-    // ✅ Close dropdown on outside click
     useEffect(() => {
         function handleClickOutside(event) {
             if (manufacturerWrapperRef.current && !manufacturerWrapperRef.current.contains(event.target)) {
@@ -106,33 +110,40 @@ export default function PurchaseOrderPage() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // ✅ All manufacturers (default + custom)
     const allManufacturers = Array.from(new Set([...defaultManufacturers, ...customManufacturers]));
-
-    // ✅ Filtered based on typed text
     const filteredManufacturers = allManufacturers.filter(m =>
         m.toLowerCase().includes(form.manufacturerName.toLowerCase())
     );
 
+    // ✅ Destination logic
+    const availableDestinations = form.manufacturerName
+        ? manufacturerDestinations[form.manufacturerName] || []
+        : [];
+    const showDestinationField = availableDestinations.length > 0;
+
     function updateField(event) {
         const { name, value } = event.target;
 
-        setForm((current) => ({
-            ...current,
-            [name]: value,
-        }));
+        setForm((current) => {
+            const next = { ...current, [name]: value };
+            // ✅ Manufacturer change → destination reset
+            if (name === "manufacturerName") {
+                next.place = "";
+            }
+            return next;
+        });
 
         setErrors((current) => ({
             ...current,
             [name]: "",
+            ...(name === "manufacturerName" ? { place: "" } : {}),
         }));
 
         setNotice("");
     }
 
-    // ✅ Handle manufacturer selection from dropdown
     function handleSelectManufacturer(name) {
-        setForm((prev) => ({ ...prev, manufacturerName: name }));
+        setForm((prev) => ({ ...prev, manufacturerName: name, place: "" }));
         setErrors((prev) => ({ ...prev, manufacturerName: "" }));
         setShowManufacturerDropdown(false);
     }
@@ -152,42 +163,23 @@ export default function PurchaseOrderPage() {
             next.packaging = "Please select packaging type.";
         }
 
-        if (
-            form.qty === "" ||
-            !Number.isFinite(Number(form.qty)) ||
-            Number(form.qty) <= 0
-        ) {
+        if (form.qty === "" || !Number.isFinite(Number(form.qty)) || Number(form.qty) <= 0) {
             next.qty = "Quantity must be greater than zero.";
         }
 
-        if (
-            form.actualPrice === "" ||
-            !Number.isFinite(Number(form.actualPrice)) ||
-            Number(form.actualPrice) < 0
-        ) {
+        if (form.actualPrice === "" || !Number.isFinite(Number(form.actualPrice)) || Number(form.actualPrice) < 0) {
             next.actualPrice = "Enter a valid actual price.";
         }
 
-        if (
-            form.discount === "" ||
-            !Number.isFinite(Number(form.discount)) ||
-            Number(form.discount) < 0
-        ) {
+        if (form.discount === "" || !Number.isFinite(Number(form.discount)) || Number(form.discount) < 0) {
             next.discount = "Enter a valid discount.";
         }
 
-        if (
-            form.discountType === "percent" &&
-            Number(form.discount) > 100
-        ) {
+        if (form.discountType === "percent" && Number(form.discount) > 100) {
             next.discount = "Percentage discount cannot exceed 100%.";
         }
 
-        if (
-            form.billingPrice === "" ||
-            !Number.isFinite(Number(form.billingPrice)) ||
-            Number(form.billingPrice) < 0
-        ) {
+        if (form.billingPrice === "" || !Number.isFinite(Number(form.billingPrice)) || Number(form.billingPrice) < 0) {
             next.billingPrice = "Enter a valid billing price.";
         }
 
@@ -195,21 +187,16 @@ export default function PurchaseOrderPage() {
             next.exFor = "Please select Ex/For.";
         }
 
-        if (!form.place.trim()) {
-            next.place = "Place is required.";
+        // ✅ Destination validation (sirf tab jab field dikh rahi ho)
+        if (showDestinationField && !form.place) {
+            next.place = "Please select a destination.";
         }
 
-        if (
-            form.brokerContactNumber &&
-            !/^[0-9]{10}$/.test(form.brokerContactNumber.trim())
-        ) {
+        if (form.brokerContactNumber && !/^[0-9]{10}$/.test(form.brokerContactNumber.trim())) {
             next.brokerContactNumber = "Enter a valid 10-digit contact number.";
         }
 
-        if (
-            form.brokerEmail &&
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.brokerEmail.trim())
-        ) {
+        if (form.brokerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.brokerEmail.trim())) {
             next.brokerEmail = "Enter a valid broker email.";
         }
 
@@ -229,7 +216,7 @@ export default function PurchaseOrderPage() {
         }
 
         try {
-            // ✅ Naya manufacturer hai to use save karo
+            // ✅ Naya manufacturer save karo
             const newName = form.manufacturerName.trim();
             if (newName && !defaultManufacturers.includes(newName) && !customManufacturers.includes(newName)) {
                 const updatedCustom = [...customManufacturers, newName];
@@ -250,6 +237,8 @@ export default function PurchaseOrderPage() {
 
             const newOrder = {
                 ...form,
+                // ✅ Destination save (agar dikh rahi hai to)
+                place: showDestinationField ? form.place : "",
                 qty: Number(form.qty),
                 actualPrice: Number(form.actualPrice),
                 discount: Number(form.discount),
@@ -478,7 +467,28 @@ export default function PurchaseOrderPage() {
                                     {errors.qty && <p className="mt-1 text-xs text-red-600">{errors.qty}</p>}
                                 </div>
 
-                                {field("place", "Place", "Enter supplier / delivery place", { required: true })}
+                                {/* ✅ NAYA: DESTINATION FIELD (conditional) */}
+                                {showDestinationField && (
+                                    <div>
+                                        <label className={labelClass} htmlFor="place">
+                                            Destination / Place <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            id="place"
+                                            name="place"
+                                            value={form.place}
+                                            onChange={updateField}
+                                            className={`${inputClass} ${errors.place ? "border-red-400" : ""}`}
+                                            required
+                                        >
+                                            <option value="">Select destination</option>
+                                            {availableDestinations.map((dest) => (
+                                                <option key={dest} value={dest}>📍 {dest}</option>
+                                            ))}
+                                        </select>
+                                        {errors.place && <p className="mt-1 text-xs text-red-600">{errors.place}</p>}
+                                    </div>
+                                )}
 
                                 {field("supplierEmail", "Email ID (Supplier)", "supplier@example.com", { type: "email" })}
 
