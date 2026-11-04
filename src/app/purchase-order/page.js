@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const STORAGE_KEY = "sudha_purchase_orders";
+const CUSTOM_MANUFACTURERS_KEY = "sudha_custom_manufacturers"; // ✅ Naya key for custom names
 const units = ["L", "KG", "MT", "BAG"];
 const packagingOptions = [
     "50kg can",
@@ -32,7 +33,7 @@ const chemicalOptions = [
     "Citric Acid",
     "Oleum(23%)",
 ];
-const manufacturerOptions = [
+const defaultManufacturers = [
     "DCM Shriram Industries Ltd.",
     "Grassim Industries Limited",
     "Meghmani Organics Limited",
@@ -66,7 +67,6 @@ const initialForm = {
     brokerName: "",
     brokerContactNumber: "",
     brokerEmail: "",
-    // ✅ freight aur transportName hata diya gaya hai
 };
 
 const inputClass =
@@ -79,6 +79,40 @@ export default function PurchaseOrderPage() {
     const [errors, setErrors] = useState({});
     const [notice, setNotice] = useState("");
     const [noticeType, setNoticeType] = useState("success");
+    
+    // ✅ Custom Manufacturer feature ke liye state
+    const [customManufacturers, setCustomManufacturers] = useState([]);
+    const [showManufacturerDropdown, setShowManufacturerDropdown] = useState(false);
+    const manufacturerWrapperRef = useRef(null);
+
+    // ✅ Load custom manufacturers from localStorage
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CUSTOM_MANUFACTURERS_KEY) || "[]");
+            setCustomManufacturers(Array.isArray(saved) ? saved : []);
+        } catch {
+            setCustomManufacturers([]);
+        }
+    }, []);
+
+    // ✅ Close dropdown on outside click
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (manufacturerWrapperRef.current && !manufacturerWrapperRef.current.contains(event.target)) {
+                setShowManufacturerDropdown(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // ✅ All manufacturers (default + custom)
+    const allManufacturers = Array.from(new Set([...defaultManufacturers, ...customManufacturers]));
+
+    // ✅ Filtered based on typed text
+    const filteredManufacturers = allManufacturers.filter(m =>
+        m.toLowerCase().includes(form.manufacturerName.toLowerCase())
+    );
 
     function updateField(event) {
         const { name, value } = event.target;
@@ -94,6 +128,13 @@ export default function PurchaseOrderPage() {
         }));
 
         setNotice("");
+    }
+
+    // ✅ Handle manufacturer selection from dropdown
+    function handleSelectManufacturer(name) {
+        setForm((prev) => ({ ...prev, manufacturerName: name }));
+        setErrors((prev) => ({ ...prev, manufacturerName: "" }));
+        setShowManufacturerDropdown(false);
     }
 
     function validate() {
@@ -172,8 +213,6 @@ export default function PurchaseOrderPage() {
             next.brokerEmail = "Enter a valid broker email.";
         }
 
-        // ✅ Freight aur Transport ki validation hata di gayi hai
-
         return next;
     }
 
@@ -185,37 +224,29 @@ export default function PurchaseOrderPage() {
         setNotice("");
 
         if (Object.keys(nextErrors).length > 0) {
-            window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
             return;
         }
 
         try {
-            const parsed = JSON.parse(
-                localStorage.getItem(STORAGE_KEY) || "[]"
-            );
+            // ✅ Naya manufacturer hai to use save karo
+            const newName = form.manufacturerName.trim();
+            if (newName && !defaultManufacturers.includes(newName) && !customManufacturers.includes(newName)) {
+                const updatedCustom = [...customManufacturers, newName];
+                setCustomManufacturers(updatedCustom);
+                localStorage.setItem(CUSTOM_MANUFACTURERS_KEY, JSON.stringify(updatedCustom));
+            }
 
+            const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
             const orders = Array.isArray(parsed) ? parsed : [];
 
-            const nextSerial =
-                orders.reduce((max, order) => {
-                    const match = String(
-                        order.purchaseOrderNumber || ""
-                    ).match(/PO-\d{4}-(\d+)/);
-
-                    return Math.max(
-                        max,
-                        match ? Number(match[1]) : 0
-                    );
-                }, 0) + 1;
+            const nextSerial = orders.reduce((max, order) => {
+                const match = String(order.purchaseOrderNumber || "").match(/PO-\d{4}-(\d+)/);
+                return Math.max(max, match ? Number(match[1]) : 0);
+            }, 0) + 1;
 
             const now = new Date();
-
-            const purchaseOrderNumber = `PO-${now.getFullYear()}-${String(
-                nextSerial
-            ).padStart(4, "0")}`;
+            const purchaseOrderNumber = `PO-${now.getFullYear()}-${String(nextSerial).padStart(4, "0")}`;
 
             const newOrder = {
                 ...form,
@@ -223,7 +254,6 @@ export default function PurchaseOrderPage() {
                 actualPrice: Number(form.actualPrice),
                 discount: Number(form.discount),
                 billingPrice: Number(form.billingPrice),
-                // ✅ Default values set ki hain taaki purane code me error na aaye
                 freight: 0,
                 transportName: "",
                 serialNo: nextSerial,
@@ -233,27 +263,17 @@ export default function PurchaseOrderPage() {
                 createdAt: now.toISOString(),
             };
 
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify([...orders, newOrder])
-            );
+            localStorage.setItem(STORAGE_KEY, JSON.stringify([...orders, newOrder]));
 
             setForm({ ...initialForm });
             setErrors({});
             setNoticeType("success");
-            setNotice(
-                `Purchase Order ${purchaseOrderNumber} saved successfully.`
-            );
+            setNotice(`Purchase Order ${purchaseOrderNumber} saved successfully.`);
 
-            window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
         } catch {
             setNoticeType("error");
-            setNotice(
-                "Unable to save the order. Please check browser storage settings and try again."
-            );
+            setNotice("Unable to save the order. Please check browser storage settings and try again.");
         }
     }
 
@@ -268,9 +288,7 @@ export default function PurchaseOrderPage() {
             <div className={options.className || ""}>
                 <label className={labelClass} htmlFor={name}>
                     {label}
-                    {options.required && (
-                        <span className="text-red-500"> *</span>
-                    )}
+                    {options.required && <span className="text-red-500"> *</span>}
                 </label>
 
                 {options.select ? (
@@ -279,8 +297,7 @@ export default function PurchaseOrderPage() {
                         name={name}
                         value={form[name]}
                         onChange={updateField}
-                        className={`${inputClass} ${errors[name] ? "border-red-400" : ""
-                            }`}
+                        className={`${inputClass} ${errors[name] ? "border-red-400" : ""}`}
                         required={options.required}
                     >
                         {options.select.map((option) => (
@@ -299,17 +316,12 @@ export default function PurchaseOrderPage() {
                         value={form[name]}
                         onChange={updateField}
                         placeholder={placeholder}
-                        className={`${inputClass} ${errors[name] ? "border-red-400" : ""
-                            }`}
+                        className={`${inputClass} ${errors[name] ? "border-red-400" : ""}`}
                         required={options.required}
                     />
                 )}
 
-                {errors[name] && (
-                    <p className="mt-1 text-xs text-red-600">
-                        {errors[name]}
-                    </p>
-                )}
+                {errors[name] && <p className="mt-1 text-xs text-red-600">{errors[name]}</p>}
             </div>
         );
     }
@@ -319,24 +331,14 @@ export default function PurchaseOrderPage() {
             <header className="bg-slate-950 text-white">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-xl font-black shadow-lg shadow-violet-500/20">
-                            S
-                        </div>
-
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-xl font-black shadow-lg shadow-violet-500/20">S</div>
                         <div>
-                            <p className="text-lg font-bold tracking-wide">
-                                SUDHA CHEMICALS
-                            </p>
-                            <p className="text-xs text-slate-400">
-                                Purchase & Supplier Management
-                            </p>
+                            <p className="text-lg font-bold tracking-wide">SUDHA CHEMICALS</p>
+                            <p className="text-xs text-slate-400">Purchase & Supplier Management</p>
                         </div>
                     </div>
 
-                    <Link
-                        href="/purchase-orders"
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold transition hover:border-violet-400 hover:bg-slate-900"
-                    >
+                    <Link href="/purchase-orders" className="inline-flex items-center justify-center rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold transition hover:border-violet-400 hover:bg-slate-900">
                         View Purchase Orders <span className="ml-2">→</span>
                     </Link>
                 </div>
@@ -344,135 +346,91 @@ export default function PurchaseOrderPage() {
 
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
                 <div className="mb-8">
-                    <p className="mb-2 text-sm font-bold uppercase tracking-[0.2em] text-violet-700">
-                        Procurement Management
-                    </p>
-
-                    <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                        Purchase Order
-                    </h1>
-
-                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                        Record supplier purchases, quantity, discounts in one place.
-                    </p>
+                    <p className="mb-2 text-sm font-bold uppercase tracking-[0.2em] text-violet-700">Procurement Management</p>
+                    <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Purchase Order</h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">Record supplier purchases, quantity, discounts in one place.</p>
                 </div>
 
                 {notice && (
-                    <div
-                        role={noticeType === "error" ? "alert" : "status"}
-                        aria-live="polite"
-                        className={`mb-6 flex items-start gap-3 rounded-2xl border bg-white p-4 text-sm shadow-lg ${noticeType === "error"
-                            ? "border-red-200"
-                            : "border-emerald-200"
-                            }`}
-                    >
-                        <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-black ${noticeType === "error"
-                                ? "bg-red-100 text-red-700"
-                                : "bg-emerald-100 text-emerald-700"
-                                }`}
-                        >
+                    <div role={noticeType === "error" ? "alert" : "status"} aria-live="polite" className={`mb-6 flex items-start gap-3 rounded-2xl border bg-white p-4 text-sm shadow-lg ${noticeType === "error" ? "border-red-200" : "border-emerald-200"}`}>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-black ${noticeType === "error" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
                             {noticeType === "error" ? "!" : "✓"}
                         </span>
-
                         <div className="min-w-0 flex-1">
-                            <p
-                                className={`font-bold ${noticeType === "error"
-                                    ? "text-red-800"
-                                    : "text-emerald-800"
-                                    }`}
-                            >
-                                {noticeType === "error"
-                                    ? "Could not save"
-                                    : "Purchase Order Saved"}
+                            <p className={`font-bold ${noticeType === "error" ? "text-red-800" : "text-emerald-800"}`}>
+                                {noticeType === "error" ? "Could not save" : "Purchase Order Saved"}
                             </p>
-
-                            <p className="mt-1 break-words text-slate-600">
-                                {notice}
-                            </p>
-
+                            <p className="mt-1 break-words text-slate-600">{notice}</p>
                             {noticeType === "success" && (
-                                <Link
-                                    href="/purchase-orders"
-                                    className="mt-2 inline-block font-semibold text-violet-700 underline underline-offset-2"
-                                >
+                                <Link href="/purchase-orders" className="mt-2 inline-block font-semibold text-violet-700 underline underline-offset-2">
                                     View orders
                                 </Link>
                             )}
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setNotice("")}
-                            aria-label="Dismiss notification"
-                            className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-100"
-                        >
-                            ×
-                        </button>
+                        <button type="button" onClick={() => setNotice("")} aria-label="Dismiss notification" className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-100">×</button>
                     </div>
                 )}
 
-                <form
-                    onSubmit={handleSubmit}
-                    noValidate
-                    className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
-                >
+                <form onSubmit={handleSubmit} noValidate className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
                     <div className="border-b border-slate-100 bg-gradient-to-r from-violet-50 to-white px-6 py-6 sm:px-8">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-900">
-                                    Purchase Information
-                                </h2>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Fields marked with * are required.
-                                </p>
+                                <h2 className="text-lg font-bold text-slate-900">Purchase Information</h2>
+                                <p className="mt-1 text-sm text-slate-500">Fields marked with * are required.</p>
                             </div>
-
-                            <span className="w-fit rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-800">
-                                NEW PURCHASE ORDER
-                            </span>
+                            <span className="w-fit rounded-full bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-800">NEW PURCHASE ORDER</span>
                         </div>
                     </div>
 
                     <div className="space-y-8 p-4 sm:p-6 lg:p-8">
                         <section>
                             <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
-                                    01
-                                </span>
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">01</span>
                                 Supplier & Item Details
                             </h3>
 
                             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                                <div>
+                                {/* ✅ SMART MANUFACTURER INPUT */}
+                                <div className="relative" ref={manufacturerWrapperRef}>
                                     <label className={labelClass} htmlFor="manufacturerName">
-                                        Name of Manufacturer/Traders
-                                        <span className="text-red-500"> *</span>
+                                        Name of Manufacturer/Traders <span className="text-red-500">*</span>
                                     </label>
-
-                                    <select
+                                    <input
                                         id="manufacturerName"
                                         name="manufacturerName"
+                                        type="text"
                                         value={form.manufacturerName}
                                         onChange={updateField}
-                                        className={`${inputClass} ${errors.manufacturerName ? "border-red-400" : ""
-                                            }`}
+                                        onFocus={() => setShowManufacturerDropdown(true)}
+                                        placeholder="Type or select manufacturer..."
+                                        className={`${inputClass} ${errors.manufacturerName ? "border-red-400" : ""}`}
+                                        autoComplete="off"
                                         required
-                                    >
-                                        <option value="">Select Manufacturer/Trader</option>
+                                    />
 
-                                        {manufacturerOptions.map((manufacturer) => (
-                                            <option key={manufacturer} value={manufacturer}>
-                                                {manufacturer}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {errors.manufacturerName && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.manufacturerName}
-                                        </p>
+                                    {showManufacturerDropdown && (
+                                        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                                            {filteredManufacturers.length === 0 ? (
+                                                <div className="p-3 text-sm text-slate-400">
+                                                    {form.manufacturerName ? "New name! Press Submit to save it." : "No manufacturers saved yet. Type to add."}
+                                                </div>
+                                            ) : (
+                                                <ul className="py-1">
+                                                    {filteredManufacturers.map((name) => (
+                                                        <li
+                                                            key={name}
+                                                            onClick={() => handleSelectManufacturer(name)}
+                                                            className="cursor-pointer px-4 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700"
+                                                        >
+                                                            {name}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
                                     )}
+
+                                    {errors.manufacturerName && <p className="mt-1 text-xs text-red-600">{errors.manufacturerName}</p>}
                                 </div>
 
                                 {field("itemName", "Item Name", "Select chemical / product", {
@@ -498,10 +456,7 @@ export default function PurchaseOrderPage() {
                                 })}
 
                                 <div>
-                                    <label className={labelClass} htmlFor="qty">
-                                        QTY <span className="text-red-500">*</span>
-                                    </label>
-
+                                    <label className={labelClass} htmlFor="qty">QTY <span className="text-red-500">*</span></label>
                                     <div className="grid grid-cols-[minmax(0,1fr)_100px] gap-2">
                                         <input
                                             id="qty"
@@ -512,45 +467,20 @@ export default function PurchaseOrderPage() {
                                             value={form.qty}
                                             onChange={updateField}
                                             placeholder="e.g. 100"
-                                            className={`${inputClass} ${errors.qty ? "border-red-400" : ""
-                                                }`}
+                                            className={`${inputClass} ${errors.qty ? "border-red-400" : ""}`}
                                         />
-
-                                        <select
-                                            name="qtyUnit"
-                                            aria-label="Quantity unit"
-                                            value={form.qtyUnit}
-                                            onChange={updateField}
-                                            className={inputClass}
-                                        >
+                                        <select name="qtyUnit" aria-label="Quantity unit" value={form.qtyUnit} onChange={updateField} className={inputClass}>
                                             {units.map((unit) => (
-                                                <option key={unit} value={unit}>
-                                                    {unit}
-                                                </option>
+                                                <option key={unit} value={unit}>{unit}</option>
                                             ))}
                                         </select>
                                     </div>
-
-                                    {errors.qty && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.qty}
-                                        </p>
-                                    )}
+                                    {errors.qty && <p className="mt-1 text-xs text-red-600">{errors.qty}</p>}
                                 </div>
 
-                                {field(
-                                    "place",
-                                    "Place",
-                                    "Enter supplier / delivery place",
-                                    { required: true }
-                                )}
+                                {field("place", "Place", "Enter supplier / delivery place", { required: true })}
 
-                                {field(
-                                    "supplierEmail",
-                                    "Email ID (Supplier)",
-                                    "supplier@example.com",
-                                    { type: "email" }
-                                )}
+                                {field("supplierEmail", "Email ID (Supplier)", "supplier@example.com", { type: "email" })}
 
                                 {field("exFor", "Ex/For", "Select Ex/For", {
                                     required: true,
@@ -567,25 +497,15 @@ export default function PurchaseOrderPage() {
 
                         <section>
                             <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                                    02
-                                </span>
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">02</span>
                                 Pricing & Discount
                             </h3>
 
                             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                                {field(
-                                    "actualPrice",
-                                    "Actual Price (₹)",
-                                    "Enter actual price",
-                                    { type: "number", required: true }
-                                )}
+                                {field("actualPrice", "Actual Price (₹)", "Enter actual price", { type: "number", required: true })}
 
                                 <div>
-                                    <label className={labelClass} htmlFor="discount">
-                                        Discount <span className="text-red-500">*</span>
-                                    </label>
-
+                                    <label className={labelClass} htmlFor="discount">Discount <span className="text-red-500">*</span></label>
                                     <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2">
                                         <input
                                             id="discount"
@@ -596,43 +516,21 @@ export default function PurchaseOrderPage() {
                                             value={form.discount}
                                             onChange={updateField}
                                             placeholder="Enter discount"
-                                            className={`${inputClass} ${errors.discount ? "border-red-400" : ""
-                                                }`}
+                                            className={`${inputClass} ${errors.discount ? "border-red-400" : ""}`}
                                         />
-
-                                        <select
-                                            name="discountType"
-                                            aria-label="Discount type"
-                                            value={form.discountType}
-                                            onChange={updateField}
-                                            className={inputClass}
-                                        >
+                                        <select name="discountType" aria-label="Discount type" value={form.discountType} onChange={updateField} className={inputClass}>
                                             <option value="percent">Percent %</option>
                                             <option value="amount">Fixed ₹</option>
                                         </select>
                                     </div>
-
-                                    {errors.discount && (
-                                        <p className="mt-1 text-xs text-red-600">
-                                            {errors.discount}
-                                        </p>
-                                    )}
+                                    {errors.discount && <p className="mt-1 text-xs text-red-600">{errors.discount}</p>}
                                 </div>
 
-                                {field(
-                                    "billingPrice",
-                                    "Billing Price (₹)",
-                                    "Enter billing price manually",
-                                    { type: "number", required: true }
-                                )}
-
-                                {/* ✅ Freight aur Transport Name ki fields yahan se hata di gayi hain */}
+                                {field("billingPrice", "Billing Price (₹)", "Enter billing price manually", { type: "number", required: true })}
                             </div>
 
                             <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
-                                Discount and Billing Price are separate fields. Billing
-                                Price must be entered manually and will not change
-                                automatically when you update the discount.
+                                Discount and Billing Price are separate fields. Billing Price must be entered manually and will not change automatically when you update the discount.
                             </p>
                         </section>
 
@@ -640,48 +538,22 @@ export default function PurchaseOrderPage() {
 
                         <section>
                             <h3 className="mb-5 flex items-center gap-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-                                    03
-                                </span>
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">03</span>
                                 Broker Details
                             </h3>
 
                             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                                {field(
-                                    "brokerName",
-                                    "Broker Name",
-                                    "Enter broker name"
-                                )}
-
-                                {field(
-                                    "brokerContactNumber",
-                                    "Contact Number (Broker)",
-                                    "10-digit mobile number",
-                                    { type: "tel" }
-                                )}
-
-                                {field(
-                                    "brokerEmail",
-                                    "Email ID (Broker)",
-                                    "broker@example.com",
-                                    { type: "email" }
-                                )}
+                                {field("brokerName", "Broker Name", "Enter broker name")}
+                                {field("brokerContactNumber", "Contact Number (Broker)", "10-digit mobile number", { type: "tel" })}
+                                {field("brokerEmail", "Email ID (Broker)", "broker@example.com", { type: "email" })}
                             </div>
                         </section>
 
                         <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
-                            <button
-                                type="button"
-                                onClick={resetForm}
-                                className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
-                            >
+                            <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
                                 Reset Form
                             </button>
-
-                            <button
-                                type="submit"
-                                className="rounded-xl bg-violet-700 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 focus:outline-none focus:ring-4 focus:ring-violet-500/20"
-                            >
+                            <button type="submit" className="rounded-xl bg-violet-700 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 focus:outline-none focus:ring-4 focus:ring-violet-500/20">
                                 Save Purchase Order →
                             </button>
                         </div>
