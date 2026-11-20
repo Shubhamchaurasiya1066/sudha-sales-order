@@ -199,7 +199,7 @@ export default function CustomersPage() {
       next.alternateNumber = "Enter a valid 10-digit number.";
     }
 
-    // Teeno department numbers ki validation (sirf Manufacturer ke liye)
+    // Teeno department numbers ki validation (sirf Enduser ke liye)
     if (form.customerType === "Enduser") {
       if (form.storeContact && !/^[0-9]{10}$/.test(form.storeContact.trim())) {
         next.storeContact = "Enter a valid 10-digit number.";
@@ -393,7 +393,7 @@ export default function CustomersPage() {
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="px-5 py-4">
                         <p className="font-bold text-slate-800">{c.customerName}</p>
-                        <span className={`inline-flex mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${c.customerType === 'Manufacturer' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span className={`inline-flex mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${c.customerType === 'Enduser' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>
                           {c.customerType}
                         </span>
                       </td>
@@ -479,14 +479,14 @@ export default function CustomersPage() {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Trader / Manufacturer <span className="text-red-500">*</span></label>
+                  <label className={labelClass}>Trader / Enduser <span className="text-red-500">*</span></label>
                   <select name="customerType" value={form.customerType} onChange={updateField} className={inputClass}>
-                    <option value="Enduser">Manufacturer</option>
+                    <option value="Enduser">Enduser</option>
                     <option value="Trader">Trader</option>
                   </select>
                 </div>
 
-                {/* ✅ DEPARTMENT SECTION: SIRF MANUFACTURER KE LIYE DIKHEGA */}
+                {/* ✅ DEPARTMENT SECTION: SIRF Enduser KE LIYE DIKHEGA */}
                 {form.customerType !== "Trader" && (
                   <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <label className="mb-3 block text-xs font-bold uppercase tracking-wider text-slate-500">
