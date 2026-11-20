@@ -25,7 +25,7 @@ const MONTHS = [
 
 const initialForm = {
   customerName: "",
-  customerType: "Manufacturer",
+  customerType: "Enduser",
   storeContact: "",
   purchaseContact: "",
   accountsContact: "",
@@ -188,8 +188,8 @@ export default function CustomersPage() {
     if (!form.customerName.trim()) next.customerName = "Customer Name is required.";
     if (!form.officeAddress.trim()) next.officeAddress = "Office Address is required.";
     
-    if (form.customerType === "Manufacturer" && !form.factoryAddress.trim()) {
-      next.factoryAddress = "Factory Address is required for Manufacturer.";
+    if (form.customerType === "Enduser" && !form.factoryAddress.trim()) {
+      next.factoryAddress = "Factory Address is required for Enduser.";
     }
     
     if (!form.contactPerson.trim()) next.contactPerson = "Contact Person is required.";
@@ -200,7 +200,7 @@ export default function CustomersPage() {
     }
 
     // Teeno department numbers ki validation (sirf Manufacturer ke liye)
-    if (form.customerType === "Manufacturer") {
+    if (form.customerType === "Enduser") {
       if (form.storeContact && !/^[0-9]{10}$/.test(form.storeContact.trim())) {
         next.storeContact = "Enter a valid 10-digit number.";
       }
@@ -226,7 +226,7 @@ export default function CustomersPage() {
         next[`items[${idx}].itemName`] = "Item required";
         itemErrors = true;
       }
-      if (form.customerType === "Manufacturer" && (!item.qty || Number(item.qty) <= 0)) {
+      if (form.customerType === "Enduser" && (!item.qty || Number(item.qty) <= 0)) {
         next[`items[${idx}].qty`] = "Qty required";
         itemErrors = true;
       }
@@ -250,7 +250,7 @@ export default function CustomersPage() {
       let updated;
       const finalItems = form.items.map(item => ({
         ...item,
-        qty: form.customerType === "Manufacturer" ? item.qty : ""
+        qty: form.customerType === "Enduser" ? item.qty : ""
       }));
 
       if (editingId) {
@@ -438,7 +438,7 @@ export default function CustomersPage() {
                             {c.items?.map((item, i) => (
                               <li key={i}>
                                 {item.itemName} 
-                                {item.qty && c.customerType === "Manufacturer" && (
+                                {item.qty && c.customerType === "Enduser" && (
                                   <> - <strong>{item.qty} {item.unit}</strong></>
                                 )}
                               </li>
@@ -481,7 +481,7 @@ export default function CustomersPage() {
                 <div>
                   <label className={labelClass}>Trader / Manufacturer <span className="text-red-500">*</span></label>
                   <select name="customerType" value={form.customerType} onChange={updateField} className={inputClass}>
-                    <option value="Manufacturer">Manufacturer</option>
+                    <option value="Enduser">Manufacturer</option>
                     <option value="Trader">Trader</option>
                   </select>
                 </div>
@@ -551,7 +551,7 @@ export default function CustomersPage() {
                   {errors.city && <p className="text-xs text-red-600 mt-1">{errors.city}</p>}
                 </div>
 
-                {form.customerType === "Manufacturer" && (
+                {form.customerType === "Enduser" && (
                   <div className="sm:col-span-2">
                     <label className={labelClass}>Factory Address <span className="text-red-500">*</span></label>
                     <textarea name="factoryAddress" value={form.factoryAddress} onChange={updateField} rows={2} className={inputClass} placeholder="Enter factory address..." />
@@ -596,7 +596,7 @@ export default function CustomersPage() {
                       {errors[`items[${index}].itemName`] && <p className="text-[10px] text-red-600 mt-1">{errors[`items[${index}].itemName`]}</p>}
                     </div>
 
-                    {form.customerType === "Manufacturer" && (
+                    {form.customerType === "Enduser" && (
                       <div className="w-full sm:w-[320px]">
                         <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Qty</label>
                         <div className="flex gap-1">
